@@ -26,6 +26,7 @@ def main():
 
     data_root = os.path.abspath(os.path.join(os.getcwd(), "../.."))  # get data root path
     image_path = os.path.join(data_root, "data_set", "flower_data")  # flower data set path
+    # image_path = "/content/test_4_googlenet"
     assert os.path.exists(image_path), "{} path does not exist.".format(image_path)
     train_dataset = datasets.ImageFolder(root=os.path.join(image_path, "train"),
                                          transform=data_transform["train"])
@@ -76,11 +77,12 @@ def main():
     # net.load_state_dict(model_dict)
     net.to(device)
     loss_function = nn.CrossEntropyLoss()
+    loss_function.to(device)
     optimizer = optim.Adam(net.parameters(), lr=0.0003)
 
     epochs = 30
     best_acc = 0.0
-    save_path = './googleNet.pth'
+    save_path = './logs/googleNet.pth'
     train_steps = len(train_loader)
     for epoch in range(epochs):
         # train
@@ -123,6 +125,10 @@ def main():
         if val_accurate > best_acc:
             best_acc = val_accurate
             torch.save(net.state_dict(), save_path)
+
+            with open('best_accurate.json', 'w') as json_file:
+                json_file.write(str(best_acc) + "\n")
+
 
     print('Finished Training')
 

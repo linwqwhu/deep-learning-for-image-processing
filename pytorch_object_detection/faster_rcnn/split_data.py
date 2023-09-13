@@ -8,11 +8,11 @@ def main():
     files_path = "./VOCdevkit/VOC2012/Annotations"
     assert os.path.exists(files_path), "path: '{}' does not exist.".format(files_path)
 
-    val_rate = 0.5
+    val_rate = 0.5  # 验证集的比例
 
-    files_name = sorted([file.split(".")[0] for file in os.listdir(files_path)])
-    files_num = len(files_name)
-    val_index = random.sample(range(0, files_num), k=int(files_num*val_rate))
+    files_name = sorted([file.split(".")[0] for file in os.listdir(files_path)])  # 2007_000027.xml --> 2007_000027
+    files_num = len(files_name)  # 获取文件数量
+    val_index = random.sample(range(0, files_num), k=int(files_num*val_rate))  # 从 0 到 files_num（不含）随机采样 k个
     train_files = []
     val_files = []
     for index, file_name in enumerate(files_name):

@@ -1,16 +1,20 @@
 import os
 import sys
 import json
+import time
 
 import torch
 import torch.nn as nn
 from torchvision import transforms, datasets, utils
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import torch.optim as optim
 from tqdm import tqdm
 
 from model import AlexNet
+
+matplotlib.use("TkAgg")
 
 
 def main():
@@ -34,8 +38,12 @@ def main():
     train_num = len(train_dataset)
 
     # {'daisy':0, 'dandelion':1, 'roses':2, 'sunflower':3, 'tulips':4}
-    flower_list = train_dataset.class_to_idx
+    flower_list = train_dataset.class_to_idx  # 获取分类名称对应的索引
+    # 将 键值 反过来 {0: 'daisy', 1: 'dandelion', 2: 'roses', 3: 'sunflowers', 4: 'tulips'}
     cla_dict = dict((val, key) for key, val in flower_list.items())
+
+    # cla_dict = train_dataset.classes   # 使用这个可以直接获取，代替上面两句 ['daisy', 'dandelion', 'roses', 'sunflowers', 'tulips']
+
     # write dict into json file
     json_str = json.dumps(cla_dict, indent=4)
     with open('class_indices.json', 'w') as json_file:
@@ -53,7 +61,7 @@ def main():
                                             transform=data_transform["val"])
     val_num = len(validate_dataset)
     validate_loader = torch.utils.data.DataLoader(validate_dataset,
-                                                  batch_size=4, shuffle=False,
+                                                  batch_size=4, shuffle=True,
                                                   num_workers=nw)
 
     print("using {} images for training, {} images for validation.".format(train_num,
@@ -61,6 +69,7 @@ def main():
     # test_data_iter = iter(validate_loader)
     # test_image, test_label = test_data_iter.next()
     #
+    # batch_size = 4
     # def imshow(img):
     #     img = img / 2 + 0.5  # unnormalize
     #     npimg = img.numpy()
@@ -71,13 +80,13 @@ def main():
     # imshow(utils.make_grid(test_image))
 
     net = AlexNet(num_classes=5, init_weights=True)
-
     net.to(device)
+
     loss_function = nn.CrossEntropyLoss()
     # pata = list(net.parameters())
     optimizer = optim.Adam(net.parameters(), lr=0.0002)
 
-    epochs = 10
+    epochs = 1
     save_path = './AlexNet.pth'
     best_acc = 0.0
     train_steps = len(train_loader)
@@ -86,6 +95,7 @@ def main():
         net.train()
         running_loss = 0.0
         train_bar = tqdm(train_loader, file=sys.stdout)
+        t1 = time.perf_counter()
         for step, data in enumerate(train_bar):
             images, labels = data
             optimizer.zero_grad()
@@ -100,6 +110,7 @@ def main():
             train_bar.desc = "train epoch[{}/{}] loss:{:.3f}".format(epoch + 1,
                                                                      epochs,
                                                                      loss)
+        print(time.perf_counter() - t1)
 
         # validate
         net.eval()

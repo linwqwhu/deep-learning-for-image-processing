@@ -1,15 +1,19 @@
 import torch
 from alexnet_model import AlexNet
 from resnet_model import resnet34
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 
+matplotlib.use("TkAgg")
 
 # create model
-model = AlexNet(num_classes=5)
-# model = resnet34(num_classes=5)
+# model = AlexNet(num_classes=5)
+model = resnet34(num_classes=5)
+
 # load model weights
-model_weight_path = "./AlexNet.pth"  # "resNet34.pth"
+# model_weight_path = "../Test2_alexnet/AlexNet.pth"
+model_weight_path = "../Test5_resnet/resNet34.pth"
 model.load_state_dict(torch.load(model_weight_path))
 print(model)
 

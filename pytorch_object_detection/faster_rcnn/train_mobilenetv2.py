@@ -8,8 +8,9 @@ import transforms
 from network_files import FasterRCNN, AnchorsGenerator
 from backbone import MobileNetV2, vgg
 from my_dataset import VOCDataSet
-from train_utils import GroupedBatchSampler, create_aspect_ratio_groups
+from train_utils.group_by_aspect_ratio import GroupedBatchSampler, create_aspect_ratio_groups
 from train_utils import train_eval_utils as utils
+import torchvision.models.detection.faster_rcnn
 
 
 def create_model(num_classes):
@@ -27,7 +28,7 @@ def create_model(num_classes):
                                         aspect_ratios=((0.5, 1.0, 2.0),))
 
     roi_pooler = torchvision.ops.MultiScaleRoIAlign(featmap_names=['0'],  # 在哪些特征层上进行roi pooling
-                                                    output_size=[7, 7],   # roi_pooling输出特征矩阵尺寸
+                                                    output_size=[7, 7],  # roi_pooling输出特征矩阵尺寸
                                                     sampling_ratio=2)  # 采样率
 
     model = FasterRCNN(backbone=backbone,
@@ -49,13 +50,17 @@ def main():
     if not os.path.exists("save_weights"):
         os.makedirs("save_weights")
 
+    # 图像预处理
     data_transform = {
         "train": transforms.Compose([transforms.ToTensor(),
                                      transforms.RandomHorizontalFlip(0.5)]),
         "val": transforms.Compose([transforms.ToTensor()])
     }
 
-    VOC_root = "./"  # VOCdevkit
+    # VOC_root = os.getcwd()  # VOCdevkit
+    # VOC_root = "../"  # VOCdevkit
+    VOC_root = "E:/"  # VOCdevkit
+
     aspect_ratio_group_factor = 3
     batch_size = 8
     amp = False  # 是否使用混合精度训练，需要GPU支持
@@ -88,7 +93,8 @@ def main():
                                                         batch_sampler=train_batch_sampler,
                                                         pin_memory=True,
                                                         num_workers=nw,
-                                                        collate_fn=train_dataset.collate_fn)
+                                                        collate_fn=train_dataset.collate_fn)  # 若不加collate_fn
+        # ，则默认使用torch.stack() 进行拼接，而这里返回的是 image,target ，直接拼接会发生错误
     else:
         train_data_loader = torch.utils.data.DataLoader(train_dataset,
                                                         batch_size=batch_size,
@@ -162,13 +168,14 @@ def main():
     # 冻结backbone部分底层权重
     for name, parameter in model.backbone.named_parameters():
         split_name = name.split(".")[0]
+        # 只冻结backbone前四层权重（前几层相对通用）
         if split_name in ["0", "1", "2", "3"]:
             parameter.requires_grad = False
         else:
             parameter.requires_grad = True
 
     # define optimizer
-    params = [p for p in model.parameters() if p.requires_grad]
+    params = [p for p in model.parameters() if p.requires_grad]  # 找出需要训练的参数
     optimizer = torch.optim.SGD(params, lr=0.005,
                                 momentum=0.9, weight_decay=0.0005)
     # learning rate scheduler
@@ -176,7 +183,7 @@ def main():
                                                    step_size=3,
                                                    gamma=0.33)
     num_epochs = 20
-    for epoch in range(init_epochs, num_epochs+init_epochs, 1):
+    for epoch in range(init_epochs, num_epochs + init_epochs, 1):
         # train for one epoch, printing every 50 iterations
         mean_loss, lr = utils.train_one_epoch(model, optimizer, train_data_loader,
                                               device, epoch, print_freq=50,
@@ -184,7 +191,7 @@ def main():
         train_loss.append(mean_loss.item())
         learning_rate.append(lr)
 
-        # update the learning rate
+        # update the learning rate，每step_size就调整一次学习率
         lr_scheduler.step()
 
         # evaluate on the test dataset
@@ -201,7 +208,7 @@ def main():
 
         # save weights
         # 仅保存最后5个epoch的权重
-        if epoch in range(num_epochs+init_epochs)[-5:]:
+        if epoch in range(num_epochs + init_epochs)[-5:]:
             save_files = {
                 'model': model.state_dict(),
                 'optimizer': optimizer.state_dict(),

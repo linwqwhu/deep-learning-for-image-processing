@@ -14,13 +14,17 @@ class VGG(nn.Module):
     def __init__(self, features, num_classes=1000, init_weights=False):
         super(VGG, self).__init__()
         self.features = features
+
+        # 分类网络结构
         self.classifier = nn.Sequential(
-            nn.Linear(512*7*7, 4096),
+            nn.Linear(512 * 7 * 7, 4096),
             nn.ReLU(True),
             nn.Dropout(p=0.5),
+
             nn.Linear(4096, 4096),
             nn.ReLU(True),
             nn.Dropout(p=0.5),
+
             nn.Linear(4096, num_classes)
         )
         if init_weights:
@@ -48,19 +52,33 @@ class VGG(nn.Module):
                 nn.init.constant_(m.bias, 0)
 
 
+# 卷积层中卷积核的大小均为3×3，步长s=1，padding=1
+# maxpool的大小为2，步长s=2
+# 对于不同的卷积层（或池化层）只有输出通道数不一样
 def make_features(cfg: list):
-    layers = []
-    in_channels = 3
+    """
+    提取特征网络结构
+    :param cfg:
+    :return: nn.Sequential(*layers)
+    """
+    layers = []  # 用于存放创建的每一层结构
+    in_channels = 3  # 初始图片通道数为3, RGB
     for v in cfg:
         if v == "M":
             layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
         else:
             conv2d = nn.Conv2d(in_channels, v, kernel_size=3, padding=1)
             layers += [conv2d, nn.ReLU(True)]
-            in_channels = v
-    return nn.Sequential(*layers)
+            in_channels = v  # 下一层卷积层的输入通道数为上一层的输出通道数
+
+    # 函数在定义中，通过在参数前加星号，将传递进来的多个参数转化为一个对象，元组或字典，可以说是将这些参数值收集起来
+    # 参数前加一个星号，表明将元组值分配给对应的函数参数值。
+    # 参数前加两个星号，表明将字典中的值赋给键，函数的定义中要将键作为参数名
+    return nn.Sequential(*layers)  # 通过非关键字参数传入，解压参数列表
 
 
+
+# 依次对应表格中的A, B, D, E
 cfgs = {
     'vgg11': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
     'vgg13': [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
@@ -75,3 +93,5 @@ def vgg(model_name="vgg16", **kwargs):
 
     model = VGG(make_features(cfg), **kwargs)
     return model
+
+# vgg_model = vgg(model_name="vgg13")

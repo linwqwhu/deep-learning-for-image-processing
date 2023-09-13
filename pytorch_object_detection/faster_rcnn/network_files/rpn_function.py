@@ -13,6 +13,8 @@ from .image_list import ImageList
 @torch.jit.unused
 def _onnx_get_num_anchors_and_pre_nms_top_n(ob, orig_pre_nms_top_n):
     # type: (Tensor, int) -> Tuple[int, int]
+
+    # 通过上面一行pytorch可以能够获取输入变量的类型，在运行过程中进行类型的检测
     from torch.onnx import operators
     num_anchors = operators.shape_as_tensor(ob)[1].unsqueeze(0)
     pre_nms_top_n = torch.min(torch.cat(
@@ -53,8 +55,12 @@ class AnchorsGenerator(nn.Module):
 
         if not isinstance(sizes[0], (list, tuple)):
             # TODO change this
+            # 调用是传进来的sizes=((32, 64, 128, 256, 512),)，与上面默认值的写法不一样
+            # sizes为tuple类型，sizes[0]=(32, 64, 128, 256, 512)也为tuple类型，所以不满足
             sizes = tuple((s,) for s in sizes)
         if not isinstance(aspect_ratios[0], (list, tuple)):
+            # 调用是传进来的aspect_ratios=((0.5, 1.0, 2.0),)，与上面默认值的写法不一样
+            # aspect_ratios为tuple类型，aspect_ratios[0]=(0.5, 1.0, 2.0)也为tuple类型，所以不满足
             aspect_ratios = (aspect_ratios,) * len(sizes)
 
         assert len(sizes) == len(aspect_ratios)
@@ -171,10 +177,11 @@ class AnchorsGenerator(nn.Module):
 
     def forward(self, image_list, feature_maps):
         # type: (ImageList, List[Tensor]) -> List[Tensor]
+        # List[Tensor]中元素个数为对应特征层的个数
         # 获取每个预测特征层的尺寸(height, width)
         grid_sizes = list([feature_map.shape[-2:] for feature_map in feature_maps])
 
-        # 获取输入图像的height和width
+        # 获取输入图像的height和width，图像是填充之后的大小
         image_size = image_list.tensors.shape[-2:]
 
         # 获取变量类型和设备类型
@@ -227,6 +234,7 @@ class RPNHead(nn.Module):
         # 计算预测的目标bbox regression参数
         self.bbox_pred = nn.Conv2d(in_channels, num_anchors * 4, kernel_size=1, stride=1)
 
+        # 对上面三个卷积层进行初始化
         for layer in self.children():
             if isinstance(layer, nn.Conv2d):
                 torch.nn.init.normal_(layer.weight, std=0.01)
@@ -262,7 +270,7 @@ def permute_and_flatten(layer, N, A, C, H, W):
     # view函数只能用于内存中连续存储的tensor，permute等操作会使tensor在内存中变得不再连续，此时就不能再调用view函数
     # reshape则不需要依赖目标tensor是否在内存中是连续的
     # [batch_size, anchors_num_per_position * (C or 4), height, width]
-    layer = layer.view(N, -1, C,  H, W)
+    layer = layer.view(N, -1, C, H, W)
     # 调换tensor维度
     layer = layer.permute(0, 3, 4, 1, 2)  # [N, H, W, -1, C]
     layer = layer.reshape(N, -1, C)
@@ -349,7 +357,7 @@ class RegionProposalNetwork(torch.nn.Module):
         super(RegionProposalNetwork, self).__init__()
         self.anchor_generator = anchor_generator
         self.head = head
-        self.box_coder = det_utils.BoxCoder(weights=(1.0, 1.0, 1.0, 1.0))
+        self.box_coder = det_utils.BoxCoder(weights=(1.0, 1.0, 1.0, 1.0))  # 这个BoxCoder主要是计算边界框的回归参数
 
         # use during training
         # 计算anchors与真实bbox的iou
@@ -479,14 +487,17 @@ class RegionProposalNetwork(torch.nn.Module):
         device = proposals.device
 
         # do not backprop throught objectness
+        # 对于fast rcnn部分，proposals是输入参数，不是模型计算得到的中间变量，
+        # 可以理解为一个叶子节点（leaf_node）且requires_grad=False
         objectness = objectness.detach()
         objectness = objectness.reshape(num_images, -1)
 
         # Returns a tensor of size size filled with fill_value
         # levels负责记录分隔不同预测特征层上的anchors索引信息
-        levels = [torch.full((n, ), idx, dtype=torch.int64, device=device)
+        levels = [torch.full((n,), idx, dtype=torch.int64, device=device)
                   for idx, n in enumerate(num_anchors_per_level)]
         levels = torch.cat(levels, 0)
+
 
         # Expand this tensor to the same size as objectness
         levels = levels.reshape(1, -1).expand_as(objectness)
@@ -578,9 +589,9 @@ class RegionProposalNetwork(torch.nn.Module):
         return objectness_loss, box_loss
 
     def forward(self,
-                images,        # type: ImageList
-                features,      # type: Dict[str, Tensor]
-                targets=None   # type: Optional[List[Dict[str, Tensor]]]
+                images,  # type: ImageList
+                features,  # type: Dict[str, Tensor]
+                targets=None  # type: Optional[List[Dict[str, Tensor]]]
                 ):
         # type: (...) -> Tuple[List[Tensor], Dict[str, Tensor]]
         """

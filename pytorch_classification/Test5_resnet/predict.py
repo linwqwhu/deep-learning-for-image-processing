@@ -19,9 +19,10 @@ def main():
          transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
 
     # load image
-    img_path = "../tulip.jpg"
+    img_path = "../img_1.png"
     assert os.path.exists(img_path), "file: '{}' dose not exist.".format(img_path)
     img = Image.open(img_path)
+    img = img.convert("RGB")
     plt.imshow(img)
     # [N, C, H, W]
     img = data_transform(img)

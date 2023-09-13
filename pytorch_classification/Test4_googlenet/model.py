@@ -5,14 +5,22 @@ import torch.nn.functional as F
 
 class GoogLeNet(nn.Module):
     def __init__(self, num_classes=1000, aux_logits=True, init_weights=False):
+        """
+        :param num_classes: 使用数据集的类别个数，默认为1000
+        :param aux_logits: 是否使用辅助分类器，默认为True
+        :param init_weights: 是否对权重进行初始化，默认为False
+        """
         super(GoogLeNet, self).__init__()
         self.aux_logits = aux_logits
 
-        self.conv1 = BasicConv2d(3, 64, kernel_size=7, stride=2, padding=3)
+        self.conv1 = BasicConv2d(3, 64, kernel_size=7, stride=2, padding=3)  # （224-7+2*3）/2 + 1 = 112.5
         self.maxpool1 = nn.MaxPool2d(3, stride=2, ceil_mode=True)
+
+        # LocalResponseNorm层的用处不大，这里忽略了nn.LocalResponseNorm()
 
         self.conv2 = BasicConv2d(64, 64, kernel_size=1)
         self.conv3 = BasicConv2d(64, 192, kernel_size=3, padding=1)
+
         self.maxpool2 = nn.MaxPool2d(3, stride=2, ceil_mode=True)
 
         self.inception3a = Inception(192, 64, 96, 128, 16, 32, 32)
@@ -33,7 +41,7 @@ class GoogLeNet(nn.Module):
             self.aux1 = InceptionAux(512, num_classes)
             self.aux2 = InceptionAux(528, num_classes)
 
-        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))  # （H，W）通过自适应平均池化层后输出的特征矩阵的高和宽为1，底层会自动推断池化和的大小
         self.dropout = nn.Dropout(0.4)
         self.fc = nn.Linear(1024, num_classes)
         if init_weights:
@@ -60,7 +68,7 @@ class GoogLeNet(nn.Module):
         # N x 480 x 14 x 14
         x = self.inception4a(x)
         # N x 512 x 14 x 14
-        if self.training and self.aux_logits:    # eval model lose this layer
+        if self.training and self.aux_logits:  # eval model lose this layer
             aux1 = self.aux1(x)
 
         x = self.inception4b(x)
@@ -69,7 +77,7 @@ class GoogLeNet(nn.Module):
         # N x 512 x 14 x 14
         x = self.inception4d(x)
         # N x 528 x 14 x 14
-        if self.training and self.aux_logits:    # eval model lose this layer
+        if self.training and self.aux_logits:  # eval model lose this layer
             aux2 = self.aux2(x)
 
         x = self.inception4e(x)
@@ -88,7 +96,7 @@ class GoogLeNet(nn.Module):
         x = self.dropout(x)
         x = self.fc(x)
         # N x 1000 (num_classes)
-        if self.training and self.aux_logits:   # eval model lose this layer
+        if self.training and self.aux_logits:  # eval model lose this layer
             return x, aux2, aux1
         return x
 
@@ -111,14 +119,14 @@ class Inception(nn.Module):
 
         self.branch2 = nn.Sequential(
             BasicConv2d(in_channels, ch3x3red, kernel_size=1),
-            BasicConv2d(ch3x3red, ch3x3, kernel_size=3, padding=1)   # 保证输出大小等于输入大小
+            BasicConv2d(ch3x3red, ch3x3, kernel_size=3, padding=1)  # 保证输出大小等于输入大小
         )
 
         self.branch3 = nn.Sequential(
             BasicConv2d(in_channels, ch5x5red, kernel_size=1),
             # 在官方的实现中，其实是3x3的kernel并不是5x5，这里我也懒得改了，具体可以参考下面的issue
             # Please see https://github.com/pytorch/vision/issues/906 for details.
-            BasicConv2d(ch5x5red, ch5x5, kernel_size=5, padding=2)   # 保证输出大小等于输入大小
+            BasicConv2d(ch5x5red, ch5x5, kernel_size=5, padding=2)  # 保证输出大小等于输入大小
         )
 
         self.branch4 = nn.Sequential(
@@ -133,7 +141,7 @@ class Inception(nn.Module):
         branch4 = self.branch4(x)
 
         outputs = [branch1, branch2, branch3, branch4]
-        return torch.cat(outputs, 1)
+        return torch.cat(outputs, 1)  # (N, C, H, W) 在维度1（C）上合并
 
 
 class InceptionAux(nn.Module):
@@ -152,7 +160,12 @@ class InceptionAux(nn.Module):
         x = self.conv(x)
         # N x 128 x 4 x 4
         x = torch.flatten(x, 1)
-        x = F.dropout(x, 0.5, training=self.training)
+
+        x = F.dropout(x, 0.5, training=self.training)  # 原文中为70%，但是实际效果不如50%
+        # 随着训练和测试的变化而不同
+        # 当我们实例化一个模型model后，可以通过model.train()和model.eval()来
+        # 控制模型的状态，在model.train()模式下self.training=True，在model.eval()模式下self.training=False
+
         # N x 2048
         x = F.relu(self.fc1(x), inplace=True)
         x = F.dropout(x, 0.5, training=self.training)

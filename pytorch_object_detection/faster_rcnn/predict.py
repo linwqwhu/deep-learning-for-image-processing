@@ -55,7 +55,7 @@ def main():
     weights_path = "./save_weights/model.pth"
     assert os.path.exists(weights_path), "{} file dose not exist.".format(weights_path)
     weights_dict = torch.load(weights_path, map_location='cpu')
-    weights_dict = weights_dict["model"] if "model" in weights_dict else weights_dict
+    weights_dict = weights_dict["model"] if "model" in weights_dict else weights_dict  # 仅读取模型相关的文件
     model.load_state_dict(weights_dict)
     model.to(device)
 
@@ -81,13 +81,14 @@ def main():
         # init
         img_height, img_width = img.shape[-2:]
         init_img = torch.zeros((1, 3, img_height, img_width), device=device)
-        model(init_img)
+        model(init_img)  # 因为第一次推理都比较慢，第二次以后的是时间才是比较准确的（要100ms以内才行）
 
         t_start = time_synchronized()
         predictions = model(img.to(device))[0]
         t_end = time_synchronized()
         print("inference+NMS time: {}".format(t_end - t_start))
 
+        # 将结果获取并放置在cpu上
         predict_boxes = predictions["boxes"].to("cpu").numpy()
         predict_classes = predictions["labels"].to("cpu").numpy()
         predict_scores = predictions["scores"].to("cpu").numpy()
@@ -95,6 +96,7 @@ def main():
         if len(predict_boxes) == 0:
             print("没有检测到任何目标!")
 
+        # 绘制图像
         plot_img = draw_objs(original_img,
                              predict_boxes,
                              predict_classes,

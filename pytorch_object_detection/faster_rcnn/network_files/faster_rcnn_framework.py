@@ -26,6 +26,14 @@ class FasterRCNNBase(nn.Module):
     """
 
     def __init__(self, backbone, rpn, roi_heads, transform):
+        """
+
+        Args:
+            backbone: 骨干网络
+            rpn: 区域建议生成网络
+            roi_heads: ROIpooling + Two MLPHead + FastRcNNPredictor + Postprocess Detections
+            transform:
+        """
         super(FasterRCNNBase, self).__init__()
         self.transform = transform
         self.backbone = backbone
@@ -46,7 +54,8 @@ class FasterRCNNBase(nn.Module):
         # type: (List[Tensor], Optional[List[Dict[str, Tensor]]]) -> Tuple[Dict[str, Tensor], List[Dict[str, Tensor]]]
         """
         Arguments:
-            images (list[Tensor]): images to be processed
+            images (list[Tensor]): images to be processed，这里输入的images的大小都是不同ing的，
+                                    后面会进行预处理，将图片放入同样大小的tensor中打包成一个batch
             targets (list[Dict[Tensor]]): ground-truth boxes present in the image (optional)
 
         Returns:
@@ -61,25 +70,26 @@ class FasterRCNNBase(nn.Module):
 
         if self.training:
             assert targets is not None
-            for target in targets:         # 进一步判断传入的target的boxes参数是否符合规定
+            for target in targets:  # 进一步判断传入的target的boxes参数是否符合规定
                 boxes = target["boxes"]
                 if isinstance(boxes, torch.Tensor):
                     if len(boxes.shape) != 2 or boxes.shape[-1] != 4:
                         raise ValueError("Expected target boxes to be a tensor"
-                                         "of shape [N, 4], got {:}.".format(
-                                          boxes.shape))
+                                         "of shape [N, 4], got {:}.".format(boxes.shape)
+                                         )  # N代表图像当中有多少个目标，而一个目标有4个值x_min,y_min,x_max,y_max
                 else:
                     raise ValueError("Expected target boxes to be of type "
                                      "Tensor, got {:}.".format(type(boxes)))
 
         original_image_sizes = torch.jit.annotate(List[Tuple[int, int]], [])
         for img in images:
-            val = img.shape[-2:]
+            val = img.shape[-2:]  # shape: [channel, height, width]
             assert len(val) == 2  # 防止输入的是个一维向量
             original_image_sizes.append((val[0], val[1]))
         # original_image_sizes = [img.shape[-2:] for img in images]
 
-        images, targets = self.transform(images, targets)  # 对图像进行预处理
+        images, targets = self.transform(images, targets)  # 对图像进行预处理，对应GeneralizedRCNNTransform
+        # 两步操作：Normalize，Resize（限定输入图像的最小边长和最大边长，没有缩放到统一大小）
 
         # print(images.tensors.shape)
         features = self.backbone(images.tensors)  # 将图像输入backbone得到特征图
@@ -246,21 +256,23 @@ class FasterRCNN(FasterRCNNBase):
 
     def __init__(self, backbone, num_classes=None,
                  # transform parameter
-                 min_size=800, max_size=1333,      # 预处理resize时限制的最小尺寸与最大尺寸
+                 min_size=800, max_size=1333,  # 预处理resize时限制的最小尺寸与最大尺寸
                  image_mean=None, image_std=None,  # 预处理normalize时使用的均值和方差
                  # RPN parameters
                  rpn_anchor_generator=None, rpn_head=None,
-                 rpn_pre_nms_top_n_train=2000, rpn_pre_nms_top_n_test=1000,    # rpn中在nms处理前保留的proposal数(根据score)
+                 # 这里NMS前后相同主要是针对带有FPN的网络。FPN有多个预测特征层，
+                 # 每层在NMS前都保留2000个，总共加起来就上万了，然后再通过NMS保留2000个
+                 rpn_pre_nms_top_n_train=2000, rpn_pre_nms_top_n_test=1000,  # rpn中在nms处理前保留的proposal数(根据score)
                  rpn_post_nms_top_n_train=2000, rpn_post_nms_top_n_test=1000,  # rpn中在nms处理后保留的proposal数
                  rpn_nms_thresh=0.7,  # rpn中进行nms处理时使用的iou阈值
                  rpn_fg_iou_thresh=0.7, rpn_bg_iou_thresh=0.3,  # rpn计算损失时，采集正负样本设置的阈值
                  rpn_batch_size_per_image=256, rpn_positive_fraction=0.5,  # rpn计算损失时采样的样本数，以及正样本占总样本的比例
                  rpn_score_thresh=0.0,
                  # Box parameters
-                 box_roi_pool=None, box_head=None, box_predictor=None,
+                 box_roi_pool=None, box_head=None, box_predictor=None,  # 依次是ROIpooling，Two MLPHead， FastRCNNPredictor
                  # 移除低目标概率      fast rcnn中进行nms处理的阈值   对预测结果根据score排序取前100个目标
                  box_score_thresh=0.05, box_nms_thresh=0.5, box_detections_per_img=100,
-                 box_fg_iou_thresh=0.5, box_bg_iou_thresh=0.5,   # fast rcnn计算误差时，采集正负样本设置的阈值
+                 box_fg_iou_thresh=0.5, box_bg_iou_thresh=0.5,  # fast rcnn计算误差时，采集正负样本设置的阈值
                  box_batch_size_per_image=512, box_positive_fraction=0.25,  # fast rcnn计算误差时采样的样本数，以及正样本占所有样本的比例
                  bbox_reg_weights=None):
         if not hasattr(backbone, "out_channels"):
@@ -287,7 +299,7 @@ class FasterRCNN(FasterRCNNBase):
 
         # 若anchor生成器为空，则自动生成针对resnet50_fpn的anchor生成器
         if rpn_anchor_generator is None:
-            anchor_sizes = ((32,), (64,), (128,), (256,), (512,))
+            anchor_sizes = ((32,), (64,), (128,), (256,), (512,))  # 单元素的元组类型后面必须加逗号（,），不然会被识别成int类型
             aspect_ratios = ((0.5, 1.0, 2.0),) * len(anchor_sizes)
             rpn_anchor_generator = AnchorsGenerator(
                 anchor_sizes, aspect_ratios
@@ -311,6 +323,11 @@ class FasterRCNN(FasterRCNNBase):
             rpn_batch_size_per_image, rpn_positive_fraction,
             rpn_pre_nms_top_n, rpn_post_nms_top_n, rpn_nms_thresh,
             score_thresh=rpn_score_thresh)
+        # rpn_batch_size_per_image RPN在计算损失时采用正负样本的总个数
+        # rpn_positive_fraction 正样本占用于计算损失所有样本的比例
+        # rpn_pre_nms_top_n NMS处理之前，针对每个预测特征层所保留的目标个数
+        # rpn_post_nms_top_n NMS处理之后，针对每个预测特征层剩余的目标个数
+        # rpn_nms_thresh NMS处理时的阈值
 
         #  Multi-scale RoIAlign pooling
         if box_roi_pool is None:

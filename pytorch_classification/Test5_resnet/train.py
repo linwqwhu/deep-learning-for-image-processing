@@ -9,6 +9,7 @@ from torchvision import transforms, datasets
 from tqdm import tqdm
 
 from model import resnet34
+# import torchvision.models.resnet
 
 
 def main():
@@ -27,6 +28,7 @@ def main():
 
     data_root = os.path.abspath(os.path.join(os.getcwd(), "../.."))  # get data root path
     image_path = os.path.join(data_root, "data_set", "flower_data")  # flower data set path
+    # image_path = "/content/test_5_resnet/dataset"
     assert os.path.exists(image_path), "{} path does not exist.".format(image_path)
     train_dataset = datasets.ImageFolder(root=os.path.join(image_path, "train"),
                                          transform=data_transform["train"])
@@ -64,11 +66,14 @@ def main():
     model_weight_path = "./resnet34-pre.pth"
     assert os.path.exists(model_weight_path), "file {} does not exist.".format(model_weight_path)
     net.load_state_dict(torch.load(model_weight_path, map_location='cpu'))
+
+    # 冻结所有网络的权重
     # for param in net.parameters():
     #     param.requires_grad = False
 
     # change fc layer structure
     in_channel = net.fc.in_features
+    # 读取预训练权重之后重新将最后一层全连接层更改需要的
     net.fc = nn.Linear(in_channel, 5)
     net.to(device)
 

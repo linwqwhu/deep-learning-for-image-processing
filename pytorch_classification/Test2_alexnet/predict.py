@@ -4,9 +4,11 @@ import json
 import torch
 from PIL import Image
 from torchvision import transforms
+import matplotlib
 import matplotlib.pyplot as plt
 
 from model import AlexNet
+matplotlib.use("TkAgg")
 
 
 def main():
@@ -18,9 +20,10 @@ def main():
          transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
     # load image
-    img_path = "../tulip.jpg"
+    img_path = "./img_1.png"
     assert os.path.exists(img_path), "file: '{}' dose not exist.".format(img_path)
     img = Image.open(img_path)
+    img = img.convert("RGB")
 
     plt.imshow(img)
     # [N, C, H, W]

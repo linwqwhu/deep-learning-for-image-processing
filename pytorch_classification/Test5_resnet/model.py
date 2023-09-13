@@ -2,10 +2,14 @@ import torch.nn as nn
 import torch
 
 
+# ResNet18/34的残差结构，用的是2个3x3的卷积
 class BasicBlock(nn.Module):
-    expansion = 1
+    expansion = 1  # 残差结构中，主分支的卷积核个数是否发生变化，不变则为1，1代表为本分支输入的一倍，4代表为本分支输入的四倍
 
     def __init__(self, in_channel, out_channel, stride=1, downsample=None, **kwargs):
+        """
+        downsample对应虚线残差结构
+        """
         super(BasicBlock, self).__init__()
         self.conv1 = nn.Conv2d(in_channels=in_channel, out_channels=out_channel,
                                kernel_size=3, stride=stride, padding=1, bias=False)
@@ -18,8 +22,8 @@ class BasicBlock(nn.Module):
 
     def forward(self, x):
         identity = x
-        if self.downsample is not None:
-            identity = self.downsample(x)
+        if self.downsample is not None:  # 虚线残差结构，需要下采样
+            identity = self.downsample(x)  # 捷径分支 short cut
 
         out = self.conv1(x)
         out = self.bn1(out)
@@ -34,6 +38,7 @@ class BasicBlock(nn.Module):
         return out
 
 
+# ResNet50/101/152的残差结构，用的是1x1+3x3+1x1的卷积
 class Bottleneck(nn.Module):
     """
     注意：原论文中，在虚线残差结构的主分支上，第一个1x1卷积层的步距是2，第二个3x3卷积层步距是1。
@@ -41,7 +46,7 @@ class Bottleneck(nn.Module):
     这么做的好处是能够在top1上提升大概0.5%的准确率。
     可参考Resnet v1.5 https://ngc.nvidia.com/catalog/model-scripts/nvidia:resnet_50_v1_5_for_pytorch
     """
-    expansion = 4
+    expansion = 4  # 残差结构中第三层卷积核个数是第一/二层卷积核个数的4倍
 
     def __init__(self, in_channel, out_channel, stride=1, downsample=None,
                  groups=1, width_per_group=64):
@@ -57,9 +62,9 @@ class Bottleneck(nn.Module):
                                kernel_size=3, stride=stride, bias=False, padding=1)
         self.bn2 = nn.BatchNorm2d(width)
         # -----------------------------------------
-        self.conv3 = nn.Conv2d(in_channels=width, out_channels=out_channel*self.expansion,
+        self.conv3 = nn.Conv2d(in_channels=width, out_channels=out_channel * self.expansion,
                                kernel_size=1, stride=1, bias=False)  # unsqueeze channels
-        self.bn3 = nn.BatchNorm2d(out_channel*self.expansion)
+        self.bn3 = nn.BatchNorm2d(out_channel * self.expansion)
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
 
@@ -86,6 +91,10 @@ class Bottleneck(nn.Module):
 
 
 class ResNet(nn.Module):
+    """
+    block = BasicBlock or Bottleneck
+    block_num为残差结构中conv2_x~conv5_x中残差块个数，是一个列表
+    """
 
     def __init__(self,
                  block,
@@ -106,10 +115,10 @@ class ResNet(nn.Module):
         self.bn1 = nn.BatchNorm2d(self.in_channel)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.layer1 = self._make_layer(block, 64, blocks_num[0])
-        self.layer2 = self._make_layer(block, 128, blocks_num[1], stride=2)
-        self.layer3 = self._make_layer(block, 256, blocks_num[2], stride=2)
-        self.layer4 = self._make_layer(block, 512, blocks_num[3], stride=2)
+        self.layer1 = self._make_layer(block, 64, blocks_num[0])  # conv2_x
+        self.layer2 = self._make_layer(block, 128, blocks_num[1], stride=2)  # conv3_x
+        self.layer3 = self._make_layer(block, 256, blocks_num[2], stride=2)  # conv4_x
+        self.layer4 = self._make_layer(block, 512, blocks_num[3], stride=2)  # conv5_x
         if self.include_top:
             self.avgpool = nn.AdaptiveAvgPool2d((1, 1))  # output size = (1, 1)
             self.fc = nn.Linear(512 * block.expansion, num_classes)
@@ -118,8 +127,11 @@ class ResNet(nn.Module):
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
 
+    # channel为残差结构中第一层卷积核个数
     def _make_layer(self, block, channel, block_num, stride=1):
         downsample = None
+
+        # ResNet50/101/152的残差结构，block.expansion=4
         if stride != 1 or self.in_channel != channel * block.expansion:
             downsample = nn.Sequential(
                 nn.Conv2d(self.in_channel, channel * block.expansion, kernel_size=1, stride=stride, bias=False),

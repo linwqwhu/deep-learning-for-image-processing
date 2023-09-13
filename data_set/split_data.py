@@ -20,6 +20,7 @@ def main():
     # 指向你解压后的flower_photos文件夹
     cwd = os.getcwd()
     data_root = os.path.join(cwd, "flower_data")
+#    data_root = "/content/test_5_resnet/dataset/flower_data"
     origin_flower_path = os.path.join(data_root, "flower_photos")
     assert os.path.exists(origin_flower_path), "path '{}' does not exist.".format(origin_flower_path)
 
@@ -65,3 +66,11 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+#[daisy] processing [633/633]
+#[dandelion] processing [898/898]
+#[roses] processing [641/641]
+#[sunflowers] processing [699/699]
+#[tulips] processing [799/799]
+#processing done!

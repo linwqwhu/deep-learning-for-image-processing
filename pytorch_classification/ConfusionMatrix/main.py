@@ -1,5 +1,6 @@
 import os
 import json
+import matplotlib
 
 import torch
 from torchvision import transforms, datasets
@@ -10,6 +11,8 @@ from prettytable import PrettyTable
 
 from model import MobileNetV2
 
+matplotlib.use("TkAgg")
+
 
 class ConfusionMatrix(object):
     """
@@ -17,6 +20,7 @@ class ConfusionMatrix(object):
     本例程使用matplotlib-3.2.1(windows and ubuntu)绘制正常
     需要额外安装prettytable库
     """
+
     def __init__(self, num_classes: int, labels: list):
         self.matrix = np.zeros((num_classes, num_classes))
         self.num_classes = num_classes
@@ -73,7 +77,7 @@ class ConfusionMatrix(object):
                          verticalalignment='center',
                          horizontalalignment='center',
                          color="white" if info > thresh else "black")
-        plt.tight_layout()
+        plt.tight_layout()  # 使图形检测更加紧凑
         plt.show()
 
 
@@ -87,6 +91,7 @@ if __name__ == '__main__':
                                          transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
 
     data_root = os.path.abspath(os.path.join(os.getcwd(), "../.."))  # get data root path
+
     image_path = os.path.join(data_root, "data_set", "flower_data")  # flower data set path
     assert os.path.exists(image_path), "data path {} does not exist.".format(image_path)
 
@@ -122,4 +127,3 @@ if __name__ == '__main__':
             confusion.update(outputs.to("cpu").numpy(), val_labels.to("cpu").numpy())
     confusion.plot()
     confusion.summary()
-

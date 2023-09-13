@@ -4,9 +4,12 @@ import json
 import torch
 from PIL import Image
 from torchvision import transforms
+import matplotlib
 import matplotlib.pyplot as plt
 
 from model import GoogLeNet
+
+matplotlib.use("TkAgg")
 
 
 def main():
@@ -18,10 +21,13 @@ def main():
          transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
     # load image
-    img_path = "../tulip.jpg"
+    img_path = "../img_1.png"
     assert os.path.exists(img_path), "file: '{}' dose not exist.".format(img_path)
     img = Image.open(img_path)
-    plt.imshow(img)
+    img = img.convert("RGB")
+
+    # plt.imshow(img)
+
     # [N, C, H, W]
     img = data_transform(img)
     # expand batch dimension
@@ -38,10 +44,12 @@ def main():
     model = GoogLeNet(num_classes=5, aux_logits=False).to(device)
 
     # load model weights
-    weights_path = "./googleNet.pth"
+    weights_path = "./logs/googleNet.pth"
     assert os.path.exists(weights_path), "file: '{}' dose not exist.".format(weights_path)
     missing_keys, unexpected_keys = model.load_state_dict(torch.load(weights_path, map_location=device),
                                                           strict=False)
+    # strict：是否严格按照模型权重进行载入
+    # 保存模型时辅助分类器的参数也保存了，所以这里将strict设置为False
 
     model.eval()
     with torch.no_grad():
@@ -61,3 +69,9 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+# class: daisy        prob: 0.000234
+# class: dandelion    prob: 0.000262
+# class: roses        prob: 0.0134
+# class: sunflowers   prob: 0.00247
+# class: tulips       prob: 0.984
