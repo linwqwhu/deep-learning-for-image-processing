@@ -407,7 +407,7 @@ class RegionProposalNetwork(torch.nn.Module):
         # 遍历每张图像的anchors和targets
         for anchors_per_image, targets_per_image in zip(anchors, targets):
             gt_boxes = targets_per_image["boxes"]
-            if gt_boxes.numel() == 0:
+            if gt_boxes.numel() == 0:  # numel()获取元素个数
                 device = anchors_per_image.device
                 matched_gt_boxes_per_image = torch.zeros(anchors_per_image.shape, dtype=torch.float32, device=device)
                 labels_per_image = torch.zeros((anchors_per_image.shape[0],), dtype=torch.float32, device=device)

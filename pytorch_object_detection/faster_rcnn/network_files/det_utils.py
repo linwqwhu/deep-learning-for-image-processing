@@ -13,8 +13,8 @@ class BalancedPositiveNegativeSampler(object):
         # type: (int, float) -> None
         """
         Arguments:
-            batch_size_per_image (int): number of elements to be selected per image
-            positive_fraction (float): percentage of positive elements per batch
+            batch_size_per_image (int): number of elements to be selected per image  # 每张图中正样本的个数
+            positive_fraction (float): percentage of positive elements per batch  # 一个batch中正样本占的比例
         """
         self.batch_size_per_image = batch_size_per_image
         self.positive_fraction = positive_fraction
@@ -172,7 +172,7 @@ class BoxCoder(object):
 
         # targets_dx, targets_dy, targets_dw, targets_dh
         targets = self.encode_single(reference_boxes, proposals)
-        return targets.split(boxes_per_image, 0)
+        return targets.split(boxes_per_image, 0)  # 将每张图片的anchors分开
 
     def encode_single(self, reference_boxes, proposals):
         """
@@ -233,16 +233,16 @@ class BoxCoder(object):
         boxes = boxes.to(rel_codes.dtype)
 
         # xmin, ymin, xmax, ymax
-        widths = boxes[:, 2] - boxes[:, 0]   # anchor/proposal宽度
+        widths = boxes[:, 2] - boxes[:, 0]  # anchor/proposal宽度
         heights = boxes[:, 3] - boxes[:, 1]  # anchor/proposal高度
-        ctr_x = boxes[:, 0] + 0.5 * widths   # anchor/proposal中心x坐标
+        ctr_x = boxes[:, 0] + 0.5 * widths  # anchor/proposal中心x坐标
         ctr_y = boxes[:, 1] + 0.5 * heights  # anchor/proposal中心y坐标
 
         wx, wy, ww, wh = self.weights  # RPN中为[1,1,1,1], fastrcnn中为[10,10,5,5]
-        dx = rel_codes[:, 0::4] / wx   # 预测anchors/proposals的中心坐标x回归参数
-        dy = rel_codes[:, 1::4] / wy   # 预测anchors/proposals的中心坐标y回归参数
-        dw = rel_codes[:, 2::4] / ww   # 预测anchors/proposals的宽度回归参数
-        dh = rel_codes[:, 3::4] / wh   # 预测anchors/proposals的高度回归参数
+        dx = rel_codes[:, 0::4] / wx  # 预测anchors/proposals的中心坐标x回归参数
+        dy = rel_codes[:, 1::4] / wy  # 预测anchors/proposals的中心坐标y回归参数
+        dw = rel_codes[:, 2::4] / ww  # 预测anchors/proposals的宽度回归参数
+        dh = rel_codes[:, 3::4] / wh  # 预测anchors/proposals的高度回归参数
 
         # limit max value, prevent sending too large values into torch.exp()
         # self.bbox_xform_clip=math.log(1000. / 16)   4.135
@@ -295,7 +295,7 @@ class Matcher(object):
         self.BETWEEN_THRESHOLDS = -2
         assert low_threshold <= high_threshold
         self.high_threshold = high_threshold  # 0.7
-        self.low_threshold = low_threshold    # 0.3
+        self.low_threshold = low_threshold  # 0.3
         self.allow_low_quality_matches = allow_low_quality_matches
 
     def __call__(self, match_quality_matrix):
@@ -338,13 +338,13 @@ class Matcher(object):
         below_low_threshold = matched_vals < self.low_threshold
         # 计算iou在low_threshold与high_threshold之间的索引值
         between_thresholds = (matched_vals >= self.low_threshold) & (
-            matched_vals < self.high_threshold
+                matched_vals < self.high_threshold
         )
         # iou小于low_threshold的matches索引置为-1
         matches[below_low_threshold] = self.BELOW_LOW_THRESHOLD  # -1
 
         # iou在[low_threshold, high_threshold]之间的matches索引置为-2
-        matches[between_thresholds] = self.BETWEEN_THRESHOLDS    # -2
+        matches[between_thresholds] = self.BETWEEN_THRESHOLDS  # -2
 
         if self.allow_low_quality_matches:
             assert all_matches is not None
