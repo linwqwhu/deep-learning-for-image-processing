@@ -32,6 +32,12 @@ class AnchorsGenerator(nn.Module):
 
     """
     anchors生成器
+    为一组特征图和图像大小生成锚框的模块。
+    该模块支持每个特征图以多种尺寸和纵横比计算锚框。
+    size和aspectratio应该有相同数量的元素，并且应该对应于特征图的数量
+    size[i]和aspect_ratios[i]可以有任意数量的元素
+    AnchorGenerator将为特征图i的每个空间位置输出一组size[i]*aspect_ratios[i]锚框。
+    
     Module that generates anchors for a set of feature maps and
     image sizes.
 
@@ -46,23 +52,33 @@ class AnchorsGenerator(nn.Module):
     per spatial location for feature map i.
 
     Arguments:
-        sizes (Tuple[Tuple[int]]):
-        aspect_ratios (Tuple[Tuple[float]]):
+        sizes (Tuple[Tuple[int]]): 锚框面积
+        aspect_ratios (Tuple[Tuple[float]]):锚框的长宽比例
     """
 
     def __init__(self, sizes=(128, 256, 512), aspect_ratios=(0.5, 1.0, 2.0)):
+        """
+        初始化
+        Args:
+            sizes:
+            aspect_ratios:
+        """
         super(AnchorsGenerator, self).__init__()
 
         if not isinstance(sizes[0], (list, tuple)):
+            # 判断sizes[0]的类型是不是list或者tuple，如果不是就改成tuple类型
             # TODO change this
             # 调用是传进来的sizes=((32, 64, 128, 256, 512),)，与上面默认值的写法不一样
             # sizes为tuple类型，sizes[0]=(32, 64, 128, 256, 512)也为tuple类型，所以不满足
             sizes = tuple((s,) for s in sizes)
+
         if not isinstance(aspect_ratios[0], (list, tuple)):
+            # 判断aspect_ratios[0]的类型是不是list或者tuple，如果不是就将aspect_ratios改成tuple类型
             # 调用是传进来的aspect_ratios=((0.5, 1.0, 2.0),)，与上面默认值的写法不一样
             # aspect_ratios为tuple类型，aspect_ratios[0]=(0.5, 1.0, 2.0)也为tuple类型，所以不满足
             aspect_ratios = (aspect_ratios,) * len(sizes)
 
+        # 判断长度是否一致
         assert len(sizes) == len(aspect_ratios)
 
         self.sizes = sizes
@@ -73,6 +89,7 @@ class AnchorsGenerator(nn.Module):
     def generate_anchors(self, scales, aspect_ratios, dtype=torch.float32, device=torch.device("cpu")):
         # type: (List[int], List[float], torch.dtype, torch.device) -> Tensor
         """
+        计算锚框的大小
         compute anchor sizes
         Arguments:
             scales: sqrt(anchor_area)
@@ -497,7 +514,6 @@ class RegionProposalNetwork(torch.nn.Module):
         levels = [torch.full((n,), idx, dtype=torch.int64, device=device)
                   for idx, n in enumerate(num_anchors_per_level)]
         levels = torch.cat(levels, 0)
-
 
         # Expand this tensor to the same size as objectness
         levels = levels.reshape(1, -1).expand_as(objectness)

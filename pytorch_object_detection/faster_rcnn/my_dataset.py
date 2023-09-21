@@ -10,7 +10,15 @@ from lxml import etree
 
 
 class VOCDataSet(Dataset):
-    """读取解析PASCAL VOC2007/2012数据集"""
+    """
+    读取解析PASCAL VOC2007/2012数据集
+    self.root: 数据集路径 VOCdevkit/VOC2012
+    self.img_root: 图片路径 VOCdevkit/VOC2012/JPEGImages
+    self.annotations_root: 注解路径 VOCdevkit/VOC2012/Annotations
+    self.xml_list: train.txt 或 val.txt 中含目标的文件列表 [...,2007_000027.xml,...]
+    self.class_dict: 类别及其对应的索引值 {...,"dog":12,...}
+    self.transforms: 图片转换方法
+    """
 
     def __init__(self, voc_root, year="2012", transforms=None, txt_name: str = "train.txt"):
         assert year in ["2007", "2012"], "year must be in ['2007', '2012']"
@@ -28,7 +36,8 @@ class VOCDataSet(Dataset):
         assert os.path.exists(txt_path), "not found {} file.".format(txt_name)
 
         with open(txt_path) as read:
-            xml_list = [os.path.join(self.annotations_root, line.strip() + ".xml")  # 这里使用strip()方法去掉换行符
+            # strip()返回删除字符串前导和尾随空格的字符串副本，这里使用strip()方法去掉换行符
+            xml_list = [os.path.join(self.annotations_root, line.strip() + ".xml")
                         for line in read.readlines() if len(line.strip()) > 0]
 
         self.xml_list = []
@@ -56,7 +65,7 @@ class VOCDataSet(Dataset):
         assert len(self.xml_list) > 0, "in '{}' file does not find any information.".format(txt_path)
 
         # read class_indict
-        json_file = './pascal_voc_classes.json'
+        json_file = './pascal_voc_classes.json'  # 一个存放物体类别及其对应序号的文件 {"类别":序号,...}
         assert os.path.exists(json_file), "{} file not exist.".format(json_file)
         with open(json_file, 'r') as f:
             self.class_dict = json.load(f)
@@ -68,7 +77,7 @@ class VOCDataSet(Dataset):
 
     def __getitem__(self, idx) -> (Any, {}):
         """
-
+        根据图片索引值获取 image, target
         Args:
             idx: 索引值
 
@@ -88,7 +97,7 @@ class VOCDataSet(Dataset):
         if image.format != "JPEG":  # VOC数据集全部都是jpg格式
             raise ValueError("Image '{}' format not JPEG".format(img_path))
 
-        boxes = []  # 标注框，x,y为标注框的左上角坐标和右下角坐标
+        boxes = []  # 标注框，x,y为标注框的左上角坐标和右下角坐标,一张图片上的所有标注框
         labels = []  # 存储的是索引值(0-20)，不是具体的类（如dog）
 
         # COCO数据集中是用来决定是RLE格式还是polygon格式 是否与其它目标重叠
@@ -108,33 +117,43 @@ class VOCDataSet(Dataset):
                 continue
 
             boxes.append([xmin, ymin, xmax, ymax])
-            labels.append(self.class_dict[obj["name"]])
+            labels.append(self.class_dict[obj["name"]])  # 添加标注框物体类别索引值
             if "difficult" in obj:
                 iscrowd.append(int(obj["difficult"]))
             else:
                 iscrowd.append(0)
 
         # convert everything into a torch.Tensor
+        # 转化成tensor格式
         boxes = torch.as_tensor(boxes, dtype=torch.float32)
         labels = torch.as_tensor(labels, dtype=torch.int64)
         iscrowd = torch.as_tensor(iscrowd, dtype=torch.int64)
         image_id = torch.tensor([idx])  # 当前数据对应的索引值
+        # boxes = [...,[xmin,ymin,xmax,ymax],[],...]
         area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])  # 标注区域面积
 
         target = {}
-        target["boxes"] = boxes
-        target["labels"] = labels
-        target["image_id"] = image_id
-        target["area"] = area
-        target["iscrowd"] = iscrowd
+        target["boxes"] = boxes  # 标注框信息
+        target["labels"] = labels  # 标注框物体类别对应序号值
+        target["image_id"] = image_id  # 当前图片在xml_list中对应的索引值，数量为图片个数
+        target["area"] = area  # 标注框面积
+        target["iscrowd"] = iscrowd  # 标注物体是否难识别或是否与其它目标重叠，0为易识别
 
+        # 对图片进行转换
         if self.transforms is not None:
             image, target = self.transforms(image, target)
 
         return image, target
 
-    def get_height_and_width(self, idx):
+    def get_height_and_width(self, idx) -> (int, int):
+        """
+        获取图片的高度和宽度(height, width)
+        Args:
+            idx: 图片索引值
 
+        Returns:
+
+        """
         # read xml
         xml_path = self.xml_list[idx]
         with open(xml_path) as fid:
@@ -150,10 +169,10 @@ class VOCDataSet(Dataset):
         """
         将xml文件解析成字典形式，参考tensorflow的recursive_parse_xml_to_dict
         Args:
-            xml: xml tree obtained by parsing XML file contents using lxml.etree
+            xml: 使用lxml.etree.fromstring()方法将xml文件转化为的Element对象
 
         Returns:
-            Python dictionary holding XML contents.
+            保存XML内容的Python字典。
         """
 
         if len(xml) == 0:  # 遍历到底层，直接返回tag对应的信息
@@ -230,7 +249,6 @@ class VOCDataSet(Dataset):
 
         """
         return tuple(zip(*batch))
-
 
 # import transforms
 # from draw_box_utils import draw_objs

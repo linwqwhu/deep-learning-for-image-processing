@@ -14,6 +14,15 @@ import torchvision.models.detection.faster_rcnn
 
 
 def create_model(num_classes):
+    """
+    创建模型
+    Args:
+        num_classes:最后的预测类别个数N+1
+
+    Returns:
+
+    """
+
     # https://download.pytorch.org/models/vgg16-397923af.pth
     # 如果使用vgg16的话就下载对应预训练权重并取消下面注释，接着把mobilenetv2模型对应的两行代码注释掉
     # vgg_feature = vgg(model_name="vgg16", weights_path="./backbone/vgg16.pth").features
@@ -24,6 +33,7 @@ def create_model(num_classes):
     backbone = MobileNetV2(weights_path="./backbone/mobilenet_v2.pth").features
     backbone.out_channels = 1280  # 设置对应backbone输出特征矩阵的channels
 
+    # 生成anchor
     anchor_generator = AnchorsGenerator(sizes=((32, 64, 128, 256, 512),),
                                         aspect_ratios=((0.5, 1.0, 2.0),))
 
@@ -59,9 +69,10 @@ def main():
 
     # VOC_root = os.getcwd()  # VOCdevkit
     # VOC_root = "../"  # VOCdevkit
+    # VOC_root = "/kaggle/input/"  # VOCdevkit
     VOC_root = "E:/"  # VOCdevkit
 
-    aspect_ratio_group_factor = 3
+    aspect_ratio_group_factor = 3  # 纵横比组因子
     batch_size = 8
     amp = False  # 是否使用混合精度训练，需要GPU支持
 
@@ -77,7 +88,7 @@ def main():
     # 是否按图片相似高宽比采样图片组成batch
     # 使用的话能够减小训练时所需GPU显存，默认使用
     if aspect_ratio_group_factor >= 0:
-        train_sampler = torch.utils.data.RandomSampler(train_dataset)
+        train_sampler = torch.utils.data.RandomSampler(train_dataset)  # 对元素进行随机采样
         # 统计所有图像高宽比例在bins区间中的位置索引
         group_ids = create_aspect_ratio_groups(train_dataset, k=aspect_ratio_group_factor)
         # 每个batch图片从同一高宽比例区间中取
@@ -93,8 +104,8 @@ def main():
                                                         batch_sampler=train_batch_sampler,
                                                         pin_memory=True,
                                                         num_workers=nw,
-                                                        collate_fn=train_dataset.collate_fn)  # 若不加collate_fn
-        # ，则默认使用torch.stack() 进行拼接，而这里返回的是 image,target ，直接拼接会发生错误
+                                                        collate_fn=train_dataset.collate_fn)
+        # 若不加collate_fn，则默认使用torch.stack() 进行拼接，而这里返回的是 image,target ，直接拼接会发生错误
     else:
         train_data_loader = torch.utils.data.DataLoader(train_dataset,
                                                         batch_size=batch_size,
@@ -121,14 +132,16 @@ def main():
 
     scaler = torch.cuda.amp.GradScaler() if amp else None
 
-    train_loss = []
-    learning_rate = []
-    val_map = []
+    train_loss = []  # 训练损失
+    learning_rate = []  # 学习率
+    val_map = []  # 验证集的mAP
 
     # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
     #  first frozen backbone and train 5 epochs                   #
     #  首先冻结前置特征提取网络权重（backbone），训练rpn以及最终预测网络部分 #
     # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+    # 冻结backbone参数
     for param in model.backbone.parameters():
         param.requires_grad = False
 
@@ -191,7 +204,7 @@ def main():
         train_loss.append(mean_loss.item())
         learning_rate.append(lr)
 
-        # update the learning rate，每step_size就调整一次学习率
+        # update the learning rate，每step_size次就调整一次学习率
         lr_scheduler.step()
 
         # evaluate on the test dataset

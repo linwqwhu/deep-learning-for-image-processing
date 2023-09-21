@@ -22,6 +22,9 @@ def _repeat_to_at_least(iterable, n):
 
 class GroupedBatchSampler(BatchSampler):
     """
+    包装另一个采样器以产生一个mini_batch索引。
+    强制一个batch只包含来自同一组的元素（具有相同宽高比）。
+    它还试图提供遵循尽可能接近原始采样器规则的规则的mini-batches。
     Wraps another sampler to yield a mini-batch of indices.
     It enforces that the batch only contain elements from the same group.
     It also tries to provide mini-batches which follows an ordering which is
@@ -34,6 +37,7 @@ class GroupedBatchSampler(BatchSampler):
             0, i.e. they must be in the range [0, num_groups).
         batch_size (int): Size of mini-batch.
     """
+
     def __init__(self, sampler, group_ids, batch_size):
         if not isinstance(sampler, Sampler):
             raise ValueError(
@@ -118,6 +122,15 @@ def _compute_aspect_ratios_slow(dataset, indices=None):
 
 
 def _compute_aspect_ratios_custom_dataset(dataset, indices=None):
+    """
+    计算常规数据集中图片的宽高比
+    Args:
+        dataset: 数据集
+        indices: 需要计算的图片范围，默认为None，即计算全部
+
+    Returns:
+        aspect_ratios: list[float] 图片的宽高比
+    """
     if indices is None:
         indices = range(len(dataset))
     aspect_ratios = []
@@ -140,10 +153,21 @@ def _compute_aspect_ratios_coco_dataset(dataset, indices=None):
 
 
 def _compute_aspect_ratios_voc_dataset(dataset, indices=None):
+    """
+    计算VOC数据集中图片的宽高比
+    Args:
+        dataset: 数据集
+        indices: 需要计算的图片范围，默认为None，即计算全部
+
+    Returns:
+        aspect_ratios: list[float] 图片的宽高比
+
+    """
     if indices is None:
         indices = range(len(dataset))
     aspect_ratios = []
     for i in indices:
+        # 这不会将数据加载到内存中，因为PIL会延迟加载数据
         # this doesn't load the data into memory, because PIL loads it lazily
         width, height = Image.open(dataset.images[i]).size
         aspect_ratio = float(width) / float(height)
@@ -160,6 +184,16 @@ def _compute_aspect_ratios_subset_dataset(dataset, indices=None):
 
 
 def compute_aspect_ratios(dataset, indices=None):
+    """
+    计算数据集中图片的宽高比
+    Args:
+        dataset: 数据集
+        indices: 需要计算的图片范围，默认为None，即计算全部
+
+    Returns:
+        aspect_ratios: list[float] 图片的宽高比
+
+    """
     if hasattr(dataset, "get_height_and_width"):
         return _compute_aspect_ratios_custom_dataset(dataset, indices)
 
@@ -177,6 +211,15 @@ def compute_aspect_ratios(dataset, indices=None):
 
 
 def _quantize(x, bins):
+    """
+    统计所有图像比例在bins区间中的位置索引
+    Args:
+        x:
+        bins: 区间
+
+    Returns:
+
+    """
     bins = copy.deepcopy(bins)
     bins = sorted(bins)
     # bisect_right：寻找y元素按顺序应该排在bins中哪个元素的右边，返回的是索引
@@ -185,6 +228,15 @@ def _quantize(x, bins):
 
 
 def create_aspect_ratio_groups(dataset, k=0):
+    """
+    统计所有图像宽高比例在bins区间中的位置索引
+    Args:
+        dataset:
+        k: 区间划分数，将[0.5, 2]区间划分成2*k等份
+
+    Returns:
+
+    """
     # 计算所有数据集中的图片width/height比例
     aspect_ratios = compute_aspect_ratios(dataset)
     # 将[0.5, 2]区间划分成2*k等份(2k+1个点，2k个区间)
