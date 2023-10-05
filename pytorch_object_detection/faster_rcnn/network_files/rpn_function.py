@@ -144,7 +144,7 @@ class AnchorsGenerator(nn.Module):
         计算预测特征图对应原始图像上的所有anchors的坐标
         Args:
             grid_sizes: 预测特征矩阵的height和width
-            strides: 预测特征矩阵上一步对应原始图像上的步距
+            strides: 预测特征矩阵上一步对应原始图像上的步距（感受野）
         """
         anchors = []
         cell_anchors = self.cell_anchors
@@ -183,7 +183,16 @@ class AnchorsGenerator(nn.Module):
 
     def cached_grid_anchors(self, grid_sizes, strides):
         # type: (List[List[int]], List[List[Tensor]]) -> List[Tensor]
-        """将计算得到的所有anchors信息进行缓存"""
+        """
+        从self._cache中读取指定大小和感受野的anchor，若不存在，则计算依次，并存储到self._cache中
+        将计算得到的所有anchors信息进行缓存
+        Args:
+            grid_sizes:
+            strides:
+
+        Returns:
+
+        """
         key = str(grid_sizes) + str(strides)
         # self._cache是字典类型
         if key in self._cache:
@@ -198,14 +207,15 @@ class AnchorsGenerator(nn.Module):
         # 获取每个预测特征层的尺寸(height, width)
         grid_sizes = list([feature_map.shape[-2:] for feature_map in feature_maps])
 
-        # 获取输入图像的height和width，图像是填充之后的大小
+        # 获取输入图像的height和width，是进行对齐填充之后的大小
         image_size = image_list.tensors.shape[-2:]
 
         # 获取变量类型和设备类型
         dtype, device = feature_maps[0].dtype, feature_maps[0].device
 
         # one step in feature map equate n pixel stride in origin image
-        # 计算特征层上的一步等于原始图像上的步长
+        # 特征图中的一步等同于原始图像中的n像素步长
+        # 计算特征层上的一个像素等于原始图像上的多少个像素（感受野）
         strides = [[torch.tensor(image_size[0] // g[0], dtype=torch.int64, device=device),
                     torch.tensor(image_size[1] // g[1], dtype=torch.int64, device=device)] for g in grid_sizes]
 
@@ -221,6 +231,7 @@ class AnchorsGenerator(nn.Module):
         for i, (image_height, image_width) in enumerate(image_list.image_sizes):
             anchors_in_image = []
             # 遍历每张预测特征图映射回原图的anchors坐标信息
+            # WHY 搞不懂这里的意思，为什么不直接复制？anchors_in_image=anchors_over_all_feature_maps[:]
             for anchors_per_feature_map in anchors_over_all_feature_maps:
                 anchors_in_image.append(anchors_per_feature_map)
             anchors.append(anchors_in_image)
@@ -234,28 +245,32 @@ class AnchorsGenerator(nn.Module):
 
 class RPNHead(nn.Module):
     """
-    add a RPN head with classification and regression
+    添加一个带有分类和回归的RPN头，
     通过滑动窗口计算预测目标概率与bbox regression参数
 
     Arguments:
-        in_channels: number of channels of the input feature
-        num_anchors: number of anchors to be predicted
+        in_channels: 输入特征的通道数
+        num_anchors: 待预测的anchor数量
     """
 
     def __init__(self, in_channels, num_anchors):
         super(RPNHead, self).__init__()
         # 3x3 滑动窗口
         self.conv = nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1)
-        # 计算预测的目标分数（这里的目标只是指前景或者背景）
+        # 计算预测的目标分数（这里的目标只是指前景或者背景）---每个anchor对应为前景的概率
         self.cls_logits = nn.Conv2d(in_channels, num_anchors, kernel_size=1, stride=1)
-        # 计算预测的目标bbox regression参数
+        # 计算预测的目标bbox regression参数---每个含背景的anchor的边界信息相较于Ground Truth的偏移
         self.bbox_pred = nn.Conv2d(in_channels, num_anchors * 4, kernel_size=1, stride=1)
 
         # 对上面三个卷积层进行初始化
+        # self.children()只包括网络模块的第一代儿子模块，
+        # 而self.modules()包含网络模块的自己本身和所有后代模块。采用深度优先遍历的方式，存储了net的所有模块，
+        # 包括net itself, net's children, children of net's children
+        # 详见https://zhuanlan.zhihu.com/p/238230258?utm_id=0
         for layer in self.children():
             if isinstance(layer, nn.Conv2d):
-                torch.nn.init.normal_(layer.weight, std=0.01)
-                torch.nn.init.constant_(layer.bias, 0)
+                torch.nn.init.normal_(layer.weight, std=0.01)  # 用从正态分布N(mean,std^2)中提取的值填充输入张量
+                torch.nn.init.constant_(layer.bias, 0)  # 用值val填充输入张量
 
     def forward(self, x):
         # type: (List[Tensor]) -> Tuple[List[Tensor], List[Tensor]]
@@ -336,29 +351,23 @@ def concat_box_prediction_layers(box_cls, box_regression):
 
 class RegionProposalNetwork(torch.nn.Module):
     """
-    Implements Region Proposal Network (RPN).
+    实现区域建议网络（RPN）
 
     Arguments:
-        anchor_generator (AnchorGenerator): module that generates the anchors for a set of feature
-            maps.
-        head (nn.Module): module that computes the objectness and regression deltas
-        fg_iou_thresh (float): minimum IoU between the anchor and the GT box so that they can be
-            considered as positive during training of the RPN.
-        bg_iou_thresh (float): maximum IoU between the anchor and the GT box so that they can be
-            considered as negative during training of the RPN.
-        batch_size_per_image (int): number of anchors that are sampled during training of the RPN
-            for computing the loss
-        positive_fraction (float): proportion of positive anchors in a mini-batch during training
-            of the RPN
-        pre_nms_top_n (Dict[str]): number of proposals to keep before applying NMS. It should
-            contain two fields: training and testing, to allow for different values depending
-            on training or evaluation
-        post_nms_top_n (Dict[str]): number of proposals to keep after applying NMS. It should
-            contain two fields: training and testing, to allow for different values depending
-            on training or evaluation
-        nms_thresh (float): NMS threshold used for postprocessing the RPN proposals
+        anchor_generator (AnchorGenerator): 为一组特征图生成anchor的模型
+        head (nn.Module): 计算 objectness 和 regression deltas的模型
+        fg_iou_thresh (float): 识别为正样本最小阈值IoU
+        bg_iou_thresh (float): 识别为负样本的最大阈值IOU
+        batch_size_per_image (int): 在RPN训练期间为计算损失而采样的anchor的数量，一般为256，正负样本各占一半
+        positive_fraction (float): 在RPN训练期间小、一个batch中正样本anchor的比例，一般为0.5
+        pre_nms_top_n (Dict[str]): 在应用NMS之前要保留的建议数量。它应该包含两个字段：training和testing，
+            以允许根据training或evaluation获得不同的值
+        post_nms_top_n (Dict[str]): 在应用NMS后要保留的建议数量。它应该包含两个字段：training和testing，
+            以允许根据training或evaluation获得不同的值
+        nms_thresh (float): 用于处理后RPN提案的NMS阈值
 
     """
+    # 判断参数类型是否正确
     __annotations__ = {
         'box_coder': det_utils.BoxCoder,
         'proposal_matcher': det_utils.Matcher,
