@@ -14,6 +14,8 @@ from .rpn_function import AnchorsGenerator, RPNHead, RegionProposalNetwork
 
 class FasterRCNNBase(nn.Module):
     """
+    Generalized R-CNN的主要部分
+
     Main class for Generalized R-CNN.
 
     Arguments:
@@ -31,8 +33,8 @@ class FasterRCNNBase(nn.Module):
         Args:
             backbone: 骨干网络
             rpn: 区域建议生成网络
-            roi_heads: ROIpooling + Two MLPHead + FastRcNNPredictor + Postprocess Detections
-            transform:
+            roi_heads: ROI pooling + Two MLPHead + FastRcNNPredictor + Postprocess Detections
+            transform: 执行从输入到模型的数据转换
         """
         super(FasterRCNNBase, self).__init__()
         self.transform = transform
@@ -151,8 +153,7 @@ class TwoMLPHead(nn.Module):
 
 class FastRCNNPredictor(nn.Module):
     """
-    Standard classification + bounding box regression layers
-    for Fast R-CNN.
+    Standard classification + bounding box regression layers for Fast R-CNN.
 
     Arguments:
         in_channels (int): number of input channels

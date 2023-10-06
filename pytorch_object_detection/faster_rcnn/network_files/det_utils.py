@@ -6,7 +6,7 @@ from torch import Tensor
 
 class BalancedPositiveNegativeSampler(object):
     """
-    对batch进行采样，确保包含固定比例的正样本
+    对图片的anchor进行选取，确保每个batch包含固定比例的正样本
     """
 
     def __init__(self, batch_size_per_image, positive_fraction):
@@ -292,6 +292,7 @@ class Matcher(object):
                 2) BETWEEN_THRESHOLDS 在[low_threshold, high_threshold)中匹配
                 3) BELOW_LOW_THRESHOLD在[0, low_threshold)中匹配
             allow_low_quality_matches (bool): 如果为True，则为仅具有低质量匹配候选者的预测生成附加匹配。
+                保证每个GT都至少有一个anchor与之对应
                 有关更多详细信息，请参见set_low_quality_matches_。
         """
         self.BELOW_LOW_THRESHOLD = -1
@@ -350,6 +351,8 @@ class Matcher(object):
 
     def set_low_quality_matches_(self, matches, all_matches, match_quality_matrix):
         """
+        选出每个GT与所有anchor的IOU最大值
+
         为只有低质量匹配的预测生成附加匹配。
 
         具体来说，对于每个ground-truth，找到与之具有最大重叠（包括ties）的预测集；

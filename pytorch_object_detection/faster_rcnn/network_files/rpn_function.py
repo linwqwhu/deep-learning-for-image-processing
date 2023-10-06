@@ -17,9 +17,9 @@ def _onnx_get_num_anchors_and_pre_nms_top_n(ob, orig_pre_nms_top_n):
     # 通过上面一行pytorch可以能够获取输入变量的类型，在运行过程中进行类型的检测
     from torch.onnx import operators
     num_anchors = operators.shape_as_tensor(ob)[1].unsqueeze(0)
-    pre_nms_top_n = torch.min(torch.cat(
-        (torch.tensor([orig_pre_nms_top_n], dtype=num_anchors.dtype),
-         num_anchors), 0))
+    pre_nms_top_n = torch.min(
+        torch.cat((torch.tensor([orig_pre_nms_top_n], dtype=num_anchors.dtype), num_anchors), 0)
+    )
 
     return num_anchors, pre_nms_top_n
 
@@ -31,8 +31,8 @@ class AnchorsGenerator(nn.Module):
     }
 
     """
-    anchors生成器
-    为一组特征图和图像大小生成锚框的模块。
+    anchors生成器，为一组特征图和图像大小生成锚框的模块。
+    
     该模块支持每个特征图以多种尺寸和纵横比计算锚框。
     size和aspectratio应该有相同数量的元素，并且应该对应于特征图的数量
     size[i]和aspect_ratios[i]可以有任意数量的元素
@@ -312,8 +312,8 @@ def permute_and_flatten(layer, N, A, C, H, W):
 def concat_box_prediction_layers(box_cls, box_regression):
     # type: (List[Tensor], List[Tensor]) -> Tuple[Tensor, Tensor]
     """
-    对box_cla和box_regression两个list中的每个预测特征层的预测信息
-    的tensor排列顺序以及shape进行调整 -> [N, -1, C]
+    对box_cls和box_regression两个list中的每个预测特征层的预测信息的tensor排列顺序以及shape进行调整 -> [N, -1, C]
+
     Args:
         box_cls: 每个预测特征层上的预测目标概率
         box_regression: 每个预测特征层上的预测目标bboxes regression参数
@@ -387,6 +387,7 @@ class RegionProposalNetwork(torch.nn.Module):
 
         # use during training
         # 计算anchors与真实bbox的iou
+        # WHY box_similarity为函数？
         self.box_similarity = box_ops.box_iou
 
         self.proposal_matcher = det_utils.Matcher(
@@ -407,11 +408,21 @@ class RegionProposalNetwork(torch.nn.Module):
         self.min_size = 1.
 
     def pre_nms_top_n(self):
+        """
+        在应用NMS之前要保留的proposal数量
+        Returns:
+
+        """
         if self.training:
             return self._pre_nms_top_n['training']
         return self._pre_nms_top_n['testing']
 
     def post_nms_top_n(self):
+        """
+        在应用NMS之后要保留的proposal数量
+        Returns:
+
+        """
         if self.training:
             return self._post_nms_top_n['training']
         return self._post_nms_top_n['testing']
@@ -421,8 +432,8 @@ class RegionProposalNetwork(torch.nn.Module):
         """
         计算每个anchors最匹配的gt，并划分为正样本，背景以及废弃的样本
         Args：
-            anchors: (List[Tensor])
-            targets: (List[Dict[Tensor])
+            anchors: (List[Tensor]) 生成的anchor
+            targets: (List[Dict[Tensor]) 图像中正样本的boxes，targets= [...,图像n,...]
         Returns:
             labels: 标记anchors归属类别（1, 0, -1分别对应正样本，背景，废弃的样本）
                     注意，在RPN中只有前景和背景，所有正样本的类别都是1，0代表背景
@@ -474,6 +485,7 @@ class RegionProposalNetwork(torch.nn.Module):
         # type: (Tensor, List[int]) -> Tensor
         """
         获取每张预测特征图上预测概率排前pre_nms_top_n的anchors索引值
+
         Args:
             objectness: Tensor(每张图像的预测目标概率信息 )
             num_anchors_per_level: List（每个预测特征层上的预测的anchors个数）
@@ -483,7 +495,7 @@ class RegionProposalNetwork(torch.nn.Module):
         r = []  # 记录每个预测特征层上预测目标概率前pre_nms_top_n的索引信息
         offset = 0
         # 遍历每个预测特征层上的预测目标概率信息
-        for ob in objectness.split(num_anchors_per_level, 1):
+        for ob in objectness.split(num_anchors_per_level, 1):  # 在维度1以num_anchors_per_level个分开
             if torchvision._is_tracing():
                 num_anchors, pre_nms_top_n = _onnx_get_num_anchors_and_pre_nms_top_n(ob, self.pre_nms_top_n())
             else:
@@ -500,6 +512,7 @@ class RegionProposalNetwork(torch.nn.Module):
         # type: (Tensor, Tensor, List[Tuple[int, int]], List[int]) -> Tuple[List[Tensor], List[Tensor]]
         """
         筛除小boxes框，nms处理，根据预测概率获取前post_nms_top_n个目标
+
         Args:
             proposals: 预测的bbox坐标
             objectness: 预测的目标概率
@@ -507,6 +520,8 @@ class RegionProposalNetwork(torch.nn.Module):
             num_anchors_per_level: 每个预测特征层上预测anchors的数目
 
         Returns:
+            final_boxes:
+            final_scores:
 
         """
         num_images = proposals.shape[0]
@@ -515,7 +530,7 @@ class RegionProposalNetwork(torch.nn.Module):
         # do not backprop throught objectness
         # 对于fast rcnn部分，proposals是输入参数，不是模型计算得到的中间变量，
         # 可以理解为一个叶子节点（leaf_node）且requires_grad=False
-        objectness = objectness.detach()
+        objectness = objectness.detach()  # 返回一个新的张量，结果永远不需要梯度
         objectness = objectness.reshape(num_images, -1)
 
         # Returns a tensor of size size filled with fill_value
@@ -573,6 +588,7 @@ class RegionProposalNetwork(torch.nn.Module):
         # type: (Tensor, Tensor, List[Tensor], List[Tensor]) -> Tuple[Tensor, Tensor]
         """
         计算RPN损失，包括类别损失（前景与背景），bbox regression损失
+
         Arguments:
             objectness (Tensor)：预测的前景概率
             pred_bbox_deltas (Tensor)：预测的bbox regression
@@ -585,11 +601,12 @@ class RegionProposalNetwork(torch.nn.Module):
         """
         # 按照给定的batch_size_per_image, positive_fraction选择正负样本
         sampled_pos_inds, sampled_neg_inds = self.fg_bg_sampler(labels)
+
         # 将一个batch中的所有正负样本List(Tensor)分别拼接在一起，并获取非零位置的索引
-        # sampled_pos_inds = torch.nonzero(torch.cat(sampled_pos_inds, dim=0)).squeeze(1)
         sampled_pos_inds = torch.where(torch.cat(sampled_pos_inds, dim=0))[0]
-        # sampled_neg_inds = torch.nonzero(torch.cat(sampled_neg_inds, dim=0)).squeeze(1)
         sampled_neg_inds = torch.where(torch.cat(sampled_neg_inds, dim=0))[0]
+        # sampled_pos_inds = torch.nonzero(torch.cat(sampled_pos_inds, dim=0)).squeeze(1)
+        # sampled_neg_inds = torch.nonzero(torch.cat(sampled_neg_inds, dim=0)).squeeze(1)
 
         # 将所有正负样本索引拼接在一起
         sampled_inds = torch.cat([sampled_pos_inds, sampled_neg_inds], dim=0)
@@ -621,19 +638,14 @@ class RegionProposalNetwork(torch.nn.Module):
         # type: (...) -> Tuple[List[Tensor], Dict[str, Tensor]]
         """
         Arguments:
-            images (ImageList): images for which we want to compute the predictions
-            features (Dict[Tensor]): features computed from the images that are
-                used for computing the predictions. Each tensor in the list
-                correspond to different feature levels
-            targets (List[Dict[Tensor]): ground-truth boxes present in the image (optional).
-                If provided, each element in the dict should contain a field `boxes`,
-                with the locations of the ground-truth boxes.
+            images (ImageList): 需要预测的图像
+            features (Dict[Tensor]): 利用images计算的特征。列表中的每个tensor对应于不同的特征层次
+            targets (List[Dict[Tensor]): 图像中存在的GT（可选）。
+                如果提供，每个元素都应包含字段“boxes”，其中包含GT的位置。
 
         Returns:
-            boxes (List[Tensor]): the predicted boxes from the RPN, one Tensor per
-                image.
-            losses (Dict[Tensor]): the losses for the model during training. During
-                testing, it is an empty dict.
+            boxes (List[Tensor]): 来自RPN的预测框，每张图像对应一个tensor
+            losses (Dict[Tensor]): 模型在训练过程中的损失。在测试过程中，为空的dict
         """
         # RPN uses all feature maps that are available
         # features是所有预测特征层组成的OrderedDict
@@ -650,13 +662,13 @@ class RegionProposalNetwork(torch.nn.Module):
         num_images = len(anchors)
 
         # numel() Returns the total number of elements in the input tensor.
+
         # 计算每个预测特征层上的对应的anchors数量
         num_anchors_per_level_shape_tensors = [o[0].shape for o in objectness]
         num_anchors_per_level = [s[0] * s[1] * s[2] for s in num_anchors_per_level_shape_tensors]
 
         # 调整内部tensor格式以及shape
-        objectness, pred_bbox_deltas = concat_box_prediction_layers(objectness,
-                                                                    pred_bbox_deltas)
+        objectness, pred_bbox_deltas = concat_box_prediction_layers(objectness, pred_bbox_deltas)
 
         # apply pred_bbox_deltas to anchors to obtain the decoded proposals
         # note that we detach the deltas because Faster R-CNN do not backprop through
