@@ -245,8 +245,7 @@ class AnchorsGenerator(nn.Module):
 
 class RPNHead(nn.Module):
     """
-    添加一个带有分类和回归的RPN头，
-    通过滑动窗口计算预测目标概率与bbox regression参数
+    添加一个带有分类和回归的RPN头，通过滑动窗口计算预测目标概率与bbox regression参数
 
     Arguments:
         in_channels: 输入特征的通道数

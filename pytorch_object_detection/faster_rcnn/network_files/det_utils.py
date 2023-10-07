@@ -156,6 +156,7 @@ class BoxCoder(object):
         # type: (List[Tensor], List[Tensor]) -> List[Tensor]
         """
         结合anchors和与之对应的GT计算regression参数
+
         Args:
             reference_boxes: List[Tensor] 每个proposal/anchor对应的gt_boxes
             proposals: List[Tensor] anchors/proposals
@@ -177,6 +178,7 @@ class BoxCoder(object):
     def encode_single(self, reference_boxes, proposals):
         """
         编码一组关于某些参考框的建议
+
         Encode a set of proposals with respect to some reference boxes
 
         Arguments:
@@ -194,6 +196,7 @@ class BoxCoder(object):
         # type: (Tensor, List[Tensor]) -> Tensor
         """
         解码一组关于某些参考框的建议
+
         Args:
             rel_codes: bbox regression parameters
             boxes: anchors/proposals
@@ -222,6 +225,7 @@ class BoxCoder(object):
     def decode_single(self, rel_codes, boxes):
         """
         从一组原始box和编码相对box偏移中，获得解码的boxes。
+
         From a set of original boxes and encoded relative box offsets, get the decoded boxes.
 
         Arguments:
@@ -231,12 +235,13 @@ class BoxCoder(object):
         boxes = boxes.to(rel_codes.dtype)
 
         # xmin, ymin, xmax, ymax
+        # boxes:[proposal_num,84], boxes[2] = [ x1_proposal1, y1_proposal1,x2_proposal1,y2_proposal1,x1_proposal2,... ]
         widths = boxes[:, 2] - boxes[:, 0]  # anchor/proposal宽度
         heights = boxes[:, 3] - boxes[:, 1]  # anchor/proposal高度
         ctr_x = boxes[:, 0] + 0.5 * widths  # anchor/proposal中心x坐标
         ctr_y = boxes[:, 1] + 0.5 * heights  # anchor/proposal中心y坐标
 
-        wx, wy, ww, wh = self.weights  # RPN中为[1,1,1,1], fast-rcnn中为[10,10,5,5]
+        wx, wy, ww, wh = self.weights  # RPN中为[1,1,1,1], fast rcnn中为[10,10,5,5]
         dx = rel_codes[:, 0::4] / wx  # 预测anchors/proposals的中心坐标x回归参数
         dy = rel_codes[:, 1::4] / wy  # 预测anchors/proposals的中心坐标y回归参数
         dw = rel_codes[:, 2::4] / ww  # 预测anchors/proposals的宽度回归参数
@@ -305,10 +310,12 @@ class Matcher(object):
     def __call__(self, match_quality_matrix):
         """
         计算anchors与每个GTboxes匹配的iou最大值，并记录索引，iou>high_threshold时索引值为GTbox的索引
+
         iou<low_threshold索引值为-1， low_threshold<=iou<high_threshold索引值为-2
+
         Args:
             match_quality_matrix (Tensor[float]): 形状为M×N的tensor，包含M个ground truth和N个predicted_box之间的成对质量。
-            an MxN tensor, containing the pairwise quality between M ground-truth elements and N predicted elements.
+                an MxN tensor, containing the pairwise quality between M ground-truth elements and N predicted elements.
 
         Returns:
             matches (Tensor[int64]): 一个形状为N的tensor，其中N[i]为匹配上的一个GT的索引值（[0,M-1]），或者为负值时 代表匹配不上
@@ -402,7 +409,14 @@ def smooth_l1_loss(input, target, beta: float = 1. / 9, size_average: bool = Tru
     """
     与pytorch中的smooth_l1_loss非常相似，但有额外的beta参数
 
-    very similar to the smooth_l1_loss from pytorch, but with the extra beta parameter
+    Args:
+        input:  [proposals_num,4]
+        target: [GT_num,4]
+        beta:
+        size_average:
+
+    Returns:
+
     """
     n = torch.abs(input - target)
     # cond = n < beta

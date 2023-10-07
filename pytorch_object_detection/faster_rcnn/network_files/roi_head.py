@@ -11,17 +11,17 @@ from . import boxes as box_ops
 def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
     # type: (Tensor, Tensor, List[Tensor], List[Tensor]) -> Tuple[Tensor, Tensor]
     """
-    Computes the loss for Faster R-CNN.
+    计算Faster R-CNN的损失
 
-    Arguments:
+    Args:
         class_logits : 预测类别概率信息，shape=[num_anchors, num_classes]
         box_regression : 预测边目标界框回归信息
         labels : 真实类别信息
         regression_targets : 真实目标边界框信息
 
     Returns:
-        classification_loss (Tensor)
-        box_loss (Tensor)
+        classification_loss (Tensor): 分类损失
+        box_loss (Tensor): 回归损失
     """
 
     labels = torch.cat(labels, dim=0)
@@ -64,16 +64,16 @@ class RoIHeads(torch.nn.Module):
     }
 
     def __init__(self,
-                 box_roi_pool,   # Multi-scale RoIAlign pooling
-                 box_head,       # TwoMLPHead
+                 box_roi_pool,  # Multi-scale RoIAlign pooling
+                 box_head,  # TwoMLPHead
                  box_predictor,  # FastRCNNPredictor
                  # Faster R-CNN training
                  fg_iou_thresh, bg_iou_thresh,  # default: 0.5, 0.5
                  batch_size_per_image, positive_fraction,  # default: 512, 0.25
                  bbox_reg_weights,  # None
                  # Faster R-CNN inference
-                 score_thresh,        # default: 0.05
-                 nms_thresh,          # default: 0.5
+                 score_thresh,  # default: 0.05
+                 nms_thresh,  # default: 0.5
                  detection_per_img):  # default: 100
         super(RoIHeads, self).__init__()
 
@@ -86,24 +86,25 @@ class RoIHeads(torch.nn.Module):
 
         self.fg_bg_sampler = det_utils.BalancedPositiveNegativeSampler(
             batch_size_per_image,  # default: 512
-            positive_fraction)     # default: 0.25
+            positive_fraction)  # default: 0.25
 
         if bbox_reg_weights is None:
             bbox_reg_weights = (10., 10., 5., 5.)
         self.box_coder = det_utils.BoxCoder(bbox_reg_weights)
 
-        self.box_roi_pool = box_roi_pool    # Multi-scale RoIAlign pooling
-        self.box_head = box_head            # TwoMLPHead
+        self.box_roi_pool = box_roi_pool  # Multi-scale RoIAlign pooling
+        self.box_head = box_head  # TwoMLPHead
         self.box_predictor = box_predictor  # FastRCNNPredictor
 
         self.score_thresh = score_thresh  # default: 0.05
-        self.nms_thresh = nms_thresh      # default: 0.5
+        self.nms_thresh = nms_thresh  # default: 0.5
         self.detection_per_img = detection_per_img  # default: 100
 
     def assign_targets_to_proposals(self, proposals, gt_boxes, gt_labels):
         # type: (List[Tensor], List[Tensor], List[Tensor]) -> Tuple[List[Tensor], List[Tensor]]
         """
         为每个proposal匹配对应的gt_box，并划分到正负样本中
+
         Args:
             proposals:
             gt_boxes:
@@ -157,6 +158,15 @@ class RoIHeads(torch.nn.Module):
 
     def subsample(self, labels):
         # type: (List[Tensor]) -> List[Tensor]
+        """
+        按给定数量和比例采样正负样本
+
+        Args:
+            labels:
+
+        Returns:
+
+        """
         # BalancedPositiveNegativeSampler
         sampled_pos_inds, sampled_neg_inds = self.fg_bg_sampler(labels)
         sampled_inds = []
@@ -172,6 +182,9 @@ class RoIHeads(torch.nn.Module):
         # type: (List[Tensor], List[Tensor]) -> List[Tensor]
         """
         将gt_boxes拼接到proposal后面
+
+        原因：实际过程中正样本个数很少，为了增加样本数量，将GT box也添加到proposal中
+
         Args:
             proposals: 一个batch中每张图像rpn预测的boxes
             gt_boxes:  一个batch中每张图像对应的真实目标边界框
@@ -187,21 +200,32 @@ class RoIHeads(torch.nn.Module):
 
     def check_targets(self, targets):
         # type: (Optional[List[Dict[str, Tensor]]]) -> None
+        """
+        检测targets是否为空，为空则直接报错
+
+        Args:
+            targets:
+
+        Returns:
+
+        """
         assert targets is not None
         assert all(["boxes" in t for t in targets])
         assert all(["labels" in t for t in targets])
 
     def select_training_samples(self,
                                 proposals,  # type: List[Tensor]
-                                targets     # type: Optional[List[Dict[str, Tensor]]]
+                                targets  # type: Optional[List[Dict[str, Tensor]]]
                                 ):
         # type: (...) -> Tuple[List[Tensor], List[Tensor], List[Tensor]]
         """
         划分正负样本，统计对应gt的标签以及边界框回归信息
+
         list元素个数为batch_size
+
         Args:
             proposals: rpn预测的boxes
-            targets:
+            targets: GT box及其标签
 
         Returns:
 
@@ -216,8 +240,8 @@ class RoIHeads(torch.nn.Module):
         device = proposals[0].device
 
         # 获取标注好的boxes以及labels信息
-        gt_boxes = [t["boxes"].to(dtype) for t in targets]
-        gt_labels = [t["labels"] for t in targets]
+        gt_boxes = [target["boxes"].to(dtype) for target in targets]
+        gt_labels = [target["labels"] for target in targets]
 
         # append ground-truth bboxes to proposal
         # 将gt_boxes拼接到proposal后面
@@ -254,22 +278,24 @@ class RoIHeads(torch.nn.Module):
         return proposals, labels, regression_targets
 
     def postprocess_detections(self,
-                               class_logits,    # type: Tensor
+                               class_logits,  # type: Tensor
                                box_regression,  # type: Tensor
-                               proposals,       # type: List[Tensor]
-                               image_shapes     # type: List[Tuple[int, int]]
+                               proposals,  # type: List[Tensor]
+                               image_shapes  # type: List[Tuple[int, int]]
                                ):
         # type: (...) -> Tuple[List[Tensor], List[Tensor], List[Tensor]]
         """
         对网络的预测数据进行后处理，包括
-        （1）根据proposal以及预测的回归参数计算出最终bbox坐标
-        （2）对预测类别结果进行softmax处理
-        （3）裁剪预测的boxes信息，将越界的坐标调整到图片边界上
-        （4）移除所有背景信息
-        （5）移除低概率目标
-        （6）移除小尺寸目标
-        （7）执行nms处理，并按scores进行排序
-        （8）根据scores排序返回前topk个目标
+
+        - [1] 根据proposal以及预测的回归参数计算出最终bbox坐标
+        - [2] 对预测类别结果进行softmax处理
+        - [3] 裁剪预测的boxes信息，将越界的坐标调整到图片边界上
+        - [4] 移除所有背景信息
+        - [5] 移除低概率目标
+        - [6] 移除小尺寸目标
+        - [7] 执行nms处理，并按scores进行排序
+        - [8] 根据scores排序返回前topk个目标
+
         Args:
             class_logits: 网络预测类别概率信息
             box_regression: 网络预测的边界框回归参数
@@ -305,7 +331,7 @@ class RoIHeads(torch.nn.Module):
             boxes = box_ops.clip_boxes_to_image(boxes, image_shape)
 
             # create labels for each prediction
-            labels = torch.arange(num_classes, device=device)
+            labels = torch.arange(num_classes, device=device)  # [0,1,2,...,20]
             labels = labels.view(1, -1).expand_as(scores)
 
             # remove prediction with the background label
@@ -347,18 +373,18 @@ class RoIHeads(torch.nn.Module):
         return all_boxes, all_scores, all_labels
 
     def forward(self,
-                features,       # type: Dict[str, Tensor]
-                proposals,      # type: List[Tensor]
-                image_shapes,   # type: List[Tuple[int, int]]
-                targets=None    # type: Optional[List[Dict[str, Tensor]]]
+                features,  # type: Dict[str, Tensor]
+                proposals,  # type: List[Tensor]
+                image_shapes,  # type: List[Tuple[int, int]]
+                targets=None  # type: Optional[List[Dict[str, Tensor]]]
                 ):
         # type: (...) -> Tuple[List[Dict[str, Tensor]], Dict[str, Tensor]]
         """
         Arguments:
-            features (List[Tensor])
-            proposals (List[Tensor[N, 4]])
-            image_shapes (List[Tuple[H, W]])
-            targets (List[Dict])
+            features (List[Tensor]): 通过backbone得到的特征图
+            proposals (List[Tensor[N, 4]]): RPN生成的proposal
+            image_shapes (List[Tuple[H, W]]): 图像在预处理之后的大小
+            targets (List[Dict]): 真实目标的标注信息
         """
 
         # 检查targets的数据类型是否正确

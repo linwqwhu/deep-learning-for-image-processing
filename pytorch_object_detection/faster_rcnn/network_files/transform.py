@@ -47,6 +47,8 @@ def _resize_image(image, self_min_size, self_max_size):
 
 class GeneralizedRCNNTransform(nn.Module):
     """
+    在将数据提供给GeneralizedRCNN模型之前执行输入/目标转换。
+
     Performs input / target transformation before feeding the data to a GeneralizedRCNN
     model.
 
@@ -88,6 +90,7 @@ class GeneralizedRCNNTransform(nn.Module):
         # type: (Tensor, Optional[Dict[str, Tensor]]) -> Tuple[Tensor, Optional[Dict[str, Tensor]]]
         """
         将图片缩放到指定的大小范围内，并对应缩放bboxes信息
+
         Args:
             image: 输入的图片
             target: 输入图片的相关信息（包括bboxes信息）
@@ -149,6 +152,7 @@ class GeneralizedRCNNTransform(nn.Module):
         # type: (List[List[int]]) -> List[int]
         """
         找出各维度上最大的值
+
         Args:
             the_list:
 
@@ -165,6 +169,7 @@ class GeneralizedRCNNTransform(nn.Module):
         # type: (List[Tensor], int) -> Tensor
         """
         将一批图像打包成一个batch返回（注意batch中每个tensor的shape是相同的）
+
         Args:
             images: 输入的一批图片
             size_divisible: 将图像高和宽调整到该数的整数倍，
@@ -211,6 +216,7 @@ class GeneralizedRCNNTransform(nn.Module):
         # type: (...) -> List[Dict[str, Tensor]]
         """
         对网络的预测结果进行后处理（主要将bboxes还原到原图像尺度上）
+
         Args:
             result: list(dict), 网络的预测结果, len(result) == batch_size
             image_shapes: list(torch.Size), 图像预处理缩放后的尺寸, len(image_shapes) == batch_size

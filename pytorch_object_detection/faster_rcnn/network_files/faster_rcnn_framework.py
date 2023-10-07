@@ -56,16 +56,14 @@ class FasterRCNNBase(nn.Module):
         # type: (List[Tensor], Optional[List[Dict[str, Tensor]]]) -> Tuple[Dict[str, Tensor], List[Dict[str, Tensor]]]
         """
         Arguments:
-            images (list[Tensor]): images to be processed，这里输入的images的大小都是不同ing的，
-                                    后面会进行预处理，将图片放入同样大小的tensor中打包成一个batch
-            targets (list[Dict[Tensor]]): ground-truth boxes present in the image (optional)
+            images (list[Tensor]): 需要处理的图像，这里输入的images的大小都是不同的，
+                后面会进行预处理，将图片放入同样大小的tensor中打包成一个batch
+            targets (list[Dict[Tensor]]): 图像中存在的GT (optional)
 
         Returns:
-            result (list[BoxList] or dict[Tensor]): the output from the model.
-                During training, it returns a dict[Tensor] which contains the losses.
-                During testing, it returns list[BoxList] contains additional fields
-                like `scores`, `labels` and `mask` (for Mask R-CNN models).
-
+            result (list[BoxList] or dict[Tensor]): 模型输出.
+                在训练过程中，它会返回一个dict[Tensor]，其中包含损失losses。
+                在测试过程中，它返回列表[BoxList]，该列表包含其他字段，如“scores”、“labels”和“mask”（用于Mask R-CNN模型）
         """
         if self.training and targets is None:
             raise ValueError("In training mode, targets should be passed")
@@ -78,10 +76,9 @@ class FasterRCNNBase(nn.Module):
                     if len(boxes.shape) != 2 or boxes.shape[-1] != 4:
                         raise ValueError("Expected target boxes to be a tensor"
                                          "of shape [N, 4], got {:}.".format(boxes.shape)
-                                         )  # N代表图像当中有多少个目标，而一个目标有4个值x_min,y_min,x_max,y_max
+                                         )  # N代表一张图像当中有多个目标，而一个目标有4个值x_min,y_min,x_max,y_max
                 else:
-                    raise ValueError("Expected target boxes to be of type "
-                                     "Tensor, got {:}.".format(type(boxes)))
+                    raise ValueError("Expected target boxes to be of type Tensor, got {:}.".format(type(boxes)))
 
         original_image_sizes = torch.jit.annotate(List[Tuple[int, int]], [])
         for img in images:
@@ -91,7 +88,7 @@ class FasterRCNNBase(nn.Module):
         # original_image_sizes = [img.shape[-2:] for img in images]
 
         images, targets = self.transform(images, targets)  # 对图像进行预处理，对应GeneralizedRCNNTransform
-        # 两步操作：Normalize，Resize（限定输入图像的最小边长和最大边长，没有缩放到统一大小）
+        # 两步操作：Normalize 和 Resize（限定输入图像的最小边长和最大边长，没有缩放到统一大小）
 
         # print(images.tensors.shape)
         features = self.backbone(images.tensors)  # 将图像输入backbone得到特征图
@@ -143,6 +140,8 @@ class TwoMLPHead(nn.Module):
         self.fc7 = nn.Linear(representation_size, representation_size)
 
     def forward(self, x):
+        # 输入x为roi_pool层的输出
+
         x = x.flatten(start_dim=1)
 
         x = F.relu(self.fc6(x))
@@ -153,6 +152,8 @@ class TwoMLPHead(nn.Module):
 
 class FastRCNNPredictor(nn.Module):
     """
+    Fast R-CNN的标准分类+边界框回归层
+
     Standard classification + bounding box regression layers for Fast R-CNN.
 
     Arguments:
@@ -162,97 +163,74 @@ class FastRCNNPredictor(nn.Module):
 
     def __init__(self, in_channels, num_classes):
         super(FastRCNNPredictor, self).__init__()
-        self.cls_score = nn.Linear(in_channels, num_classes)
+        self.cls_score = nn.Linear(in_channels, num_classes)  # 针对每一个proposal对N+1个类的预测
         self.bbox_pred = nn.Linear(in_channels, num_classes * 4)
 
     def forward(self, x):
         if x.dim() == 4:
             assert list(x.shape[2:]) == [1, 1]
-        x = x.flatten(start_dim=1)
-        scores = self.cls_score(x)
-        bbox_deltas = self.bbox_pred(x)
+        x = x.flatten(start_dim=1)  # [1024(两张图片，一张图片就有512个proposal),1024],实际这里的展平处理不起作用
+        scores = self.cls_score(x)  # [1024,21]
+        bbox_deltas = self.bbox_pred(x)  # [1024,84]
 
         return scores, bbox_deltas
 
 
 class FasterRCNN(FasterRCNNBase):
     """
-    Implements Faster R-CNN.
+    实现 Faster R-CNN.
 
-    The input to the model is expected to be a list of tensors, each of shape [C, H, W], one for each
-    image, and should be in 0-1 range. Different images can have different sizes.
+    模型的输入期待为是list[Tensor]，每个Tensor的形状为[C, H, W]，每个图像对应一个张量，并且应该在0-1范围内。不同的图像可以具有不同的大小。
 
-    The behavior of the model changes depending if it is in training or evaluation mode.
+    模型的行为会发生变化，这取决于它是处于训练模式还是评估模式。
 
-    During training, the model expects both the input tensors, as well as a targets (list of dictionary),
-    containing:
-        - boxes (FloatTensor[N, 4]): the ground-truth boxes in [x1, y1, x2, y2] format, with values
-          between 0 and H and 0 and W
-        - labels (Int64Tensor[N]): the class label for each ground-truth box
+    在训练过程中，模型期望输入格式为tensors和targets为list of dictionary，其中包含：
+        - boxes (FloatTensor[N, 4]): [x1, y1, x2, y2]格式的GT，y1、y2值在0和H之间，x1、x2值在0和W之间
+        - labels (Int64Tensor[N]): 每个GT的类标签
 
-    The model returns a Dict[Tensor] during training, containing the classification and regression
-    losses for both the RPN and the R-CNN.
+    该模型在训练期间返回一个Dict[Tensor]，包含RPN和R-CNN的分类及回归损失。
 
-    During inference, the model requires only the input tensors, and returns the post-processed
-    predictions as a List[Dict[Tensor]], one for each input image. The fields of the Dict are as
-    follows:
-        - boxes (FloatTensor[N, 4]): the predicted boxes in [x1, y1, x2, y2] format, with values between
-          0 and H and 0 and W
-        - labels (Int64Tensor[N]): the predicted labels for each image
-        - scores (Tensor[N]): the scores or each prediction
+    在推理过程中，模型只需要输入张量，并将处理后的预测返回一个List[Dict[Tensor]]，每张输入图像对应一个Dict[Tensor]。Dict的字段如下：
+        - boxes (FloatTensor[N, 4]): [x1, y1, x2, y2]格式的预测框，y1、y1值在0和H之间，x1、x2值在0和W之间
+        - labels (Int64Tensor[N]): 每个图像的预测标签
+        - scores (Tensor[N]): 每个预测的分数
 
     Arguments:
-        backbone (nn.Module): the network used to compute the features for the model.
-            It should contain a out_channels attribute, which indicates the number of output
-            channels that each feature map has (and it should be the same for all feature maps).
-            The backbone should return a single Tensor or and OrderedDict[Tensor].
-        num_classes (int): number of output classes of the model (including the background).
-            If box_predictor is specified, num_classes should be None.
-        min_size (int): minimum size of the image to be rescaled before feeding it to the backbone
-        max_size (int): maximum size of the image to be rescaled before feeding it to the backbone
-        image_mean (Tuple[float, float, float]): mean values used for input normalization.
-            They are generally the mean values of the dataset on which the backbone has been trained
-            on
-        image_std (Tuple[float, float, float]): std values used for input normalization.
-            They are generally the std values of the dataset on which the backbone has been trained on
-        rpn_anchor_generator (AnchorGenerator): module that generates the anchors for a set of feature
-            maps.
-        rpn_head (nn.Module): module that computes the objectness and regression deltas from the RPN
-        rpn_pre_nms_top_n_train (int): number of proposals to keep before applying NMS during training
-        rpn_pre_nms_top_n_test (int): number of proposals to keep before applying NMS during testing
-        rpn_post_nms_top_n_train (int): number of proposals to keep after applying NMS during training
-        rpn_post_nms_top_n_test (int): number of proposals to keep after applying NMS during testing
-        rpn_nms_thresh (float): NMS threshold used for postprocessing the RPN proposals
-        rpn_fg_iou_thresh (float): minimum IoU between the anchor and the GT box so that they can be
-            considered as positive during training of the RPN.
-        rpn_bg_iou_thresh (float): maximum IoU between the anchor and the GT box so that they can be
-            considered as negative during training of the RPN.
-        rpn_batch_size_per_image (int): number of anchors that are sampled during training of the RPN
-            for computing the loss
-        rpn_positive_fraction (float): proportion of positive anchors in a mini-batch during training
-            of the RPN
-        rpn_score_thresh (float): during inference, only return proposals with a classification score
-            greater than rpn_score_thresh
-        box_roi_pool (MultiScaleRoIAlign): the module which crops and resizes the feature maps in
-            the locations indicated by the bounding boxes
-        box_head (nn.Module): module that takes the cropped feature maps as input
-        box_predictor (nn.Module): module that takes the output of box_head and returns the
-            classification logits and box regression deltas.
-        box_score_thresh (float): during inference, only return proposals with a classification score
-            greater than box_score_thresh
-        box_nms_thresh (float): NMS threshold for the prediction head. Used during inference
-        box_detections_per_img (int): maximum number of detections per image, for all classes.
-        box_fg_iou_thresh (float): minimum IoU between the proposals and the GT box so that they can be
-            considered as positive during training of the classification head
-        box_bg_iou_thresh (float): maximum IoU between the proposals and the GT box so that they can be
-            considered as negative during training of the classification head
-        box_batch_size_per_image (int): number of proposals that are sampled during training of the
-            classification head
-        box_positive_fraction (float): proportion of positive proposals in a mini-batch during training
-            of the classification head
-        bbox_reg_weights (Tuple[float, float, float, float]): weights for the encoding/decoding of the
-            bounding boxes
-
+        backbone (nn.Module): 用于计算模型特征的网络。
+            它应该包含out_channels属性，该属性指示每个特征图具有的输出通道的数量（并且对于所有特征图都应该相同）。
+            backbone应返回单个Tensor或OrderedDict[Tensor]。
+        num_classes (int): 模型的输出类的数量（包括背景）。如果指定了box_predictor，则num_classes应为None。
+        min_size (int): 将图像馈送到backbone之前要重新缩放的图像的最小尺寸
+            minimum size of the image to be rescaled before feeding it to the backbone
+        max_size (int): 将图像馈送到backbone之前要重新缩放的图像的最大尺寸
+            maximum size of the image to be rescaled before feeding it to the backbone
+        image_mean (Tuple[float, float, float]): 用于输入归一化的平均值。
+            通常是主干在其上进行训练的数据集的平均值
+        image_std (Tuple[float, float, float]): 用于输入规范化的标准差值。
+            通常是对主干进行训练的数据集的标准值
+        rpn_anchor_generator (AnchorGenerator): 用于生成一组特征图的anchor的模型
+        rpn_head (nn.Module): 根据RPN计算objectness和回归增量regression deltas的模型
+        rpn_pre_nms_top_n_train (int): 在训练期间应用NMS之前要保留的建议数量
+        rpn_pre_nms_top_n_test (int): 在测试期间应用NMS之前要保留的建议数量
+        rpn_post_nms_top_n_train (int): 在训练期间应用NMS后要保留的建议数量
+        rpn_post_nms_top_n_test (int): 在测试期间应用NMS后要保留的建议数量
+        rpn_nms_thresh (float): 处理RPN proposal的NMS阈值
+        rpn_fg_iou_thresh (float): 正样本，anchor和GT box之间的最小IoU
+        rpn_bg_iou_thresh (float): 负样本，anchor和GT box之间的最大IoU
+        rpn_batch_size_per_image (int): 在RPN训练期间为计算损失而选取的anchor的数量
+        rpn_positive_fraction (float): RPN训练期间一个batch正样本anchor的比例
+        rpn_score_thresh (float): 在推理过程中，只返回分类分数大于rpn_score_thresh的建议
+        box_roi_pool (MultiScaleRoIAlign): 在bbox指示的位置裁剪和调整特征图大小的模块
+        box_head (nn.Module): 将裁剪的特征图作为输入的模块
+        box_predictor (nn.Module): 获取box_head的输出并返回classification logits和box regression deltas的模块
+        box_score_thresh (float): 在推理过程中，只返回分类得分大于box_score_thresh的proposal
+        box_nms_thresh (float): the prediction head的NMS阈值。推理过程中使用
+        box_detections_per_img (int): 所有类别的每个图像的最大检测次数
+        box_fg_iou_thresh (float): the classification head训练期间，正样本， proposal和GT box之间的最小IoU
+        box_bg_iou_thresh (float): the classification head训练期间，负样本， proposal和GT box之间的最大IoU
+        box_batch_size_per_image (int): the classification head训练期间抽样的proposal数量
+        box_positive_fraction (float): the classification head训练期间一个mini-batch中正样本比例
+        bbox_reg_weights (Tuple[float, float, float, float]): 用于bbox的编码/解码的权重
     """
 
     def __init__(self, backbone, num_classes=None,
@@ -260,7 +238,8 @@ class FasterRCNN(FasterRCNNBase):
                  min_size=800, max_size=1333,  # 预处理resize时限制的最小尺寸与最大尺寸
                  image_mean=None, image_std=None,  # 预处理normalize时使用的均值和方差
                  # RPN parameters
-                 rpn_anchor_generator=None, rpn_head=None,
+                 rpn_anchor_generator=None, rpn_head=None,  # anchor生成器；根据RPN计算objectness和回归增量regression deltas的模块
+
                  # 这里NMS前后相同主要是针对带有FPN的网络。FPN有多个预测特征层，
                  # 每层在NMS前都保留2000个，总共加起来就上万了，然后再通过NMS保留2000个
                  rpn_pre_nms_top_n_train=2000, rpn_pre_nms_top_n_test=1000,  # rpn中在nms处理前保留的proposal数(根据score)
@@ -270,17 +249,18 @@ class FasterRCNN(FasterRCNNBase):
                  rpn_batch_size_per_image=256, rpn_positive_fraction=0.5,  # rpn计算损失时采样的样本数，以及正样本占总样本的比例
                  rpn_score_thresh=0.0,
                  # Box parameters
-                 box_roi_pool=None, box_head=None, box_predictor=None,  # 依次是ROIpooling，Two MLPHead， FastRCNNPredictor
-                 # 移除低目标概率      fast rcnn中进行nms处理的阈值   对预测结果根据score排序取前100个目标
+                 box_roi_pool=None, box_head=None, box_predictor=None,  # 依次是ROI pooling，Two MLPHead， FastRCNNPredictor
+                 # 移除低目标概率；fast rcnn中进行nms处理的阈值；对预测结果根据score排序取前100个目标
                  box_score_thresh=0.05, box_nms_thresh=0.5, box_detections_per_img=100,
                  box_fg_iou_thresh=0.5, box_bg_iou_thresh=0.5,  # fast rcnn计算误差时，采集正负样本设置的阈值
                  box_batch_size_per_image=512, box_positive_fraction=0.25,  # fast rcnn计算误差时采样的样本数，以及正样本占所有样本的比例
-                 bbox_reg_weights=None):
+                 bbox_reg_weights=None  # bbox回归权重
+                 ):
         if not hasattr(backbone, "out_channels"):
             raise ValueError(
                 "backbone should contain an attribute out_channels"
                 "specifying the number of output channels  (assumed to be the"
-                "same for all the levels"
+                "same for all the levels)"
             )
 
         assert isinstance(rpn_anchor_generator, (AnchorsGenerator, type(None)))
@@ -288,19 +268,17 @@ class FasterRCNN(FasterRCNNBase):
 
         if num_classes is not None:
             if box_predictor is not None:
-                raise ValueError("num_classes should be None when box_predictor "
-                                 "is specified")
+                raise ValueError("num_classes should be None when box_predictor is specified")
         else:
             if box_predictor is None:
-                raise ValueError("num_classes should not be None when box_predictor "
-                                 "is not specified")
+                raise ValueError("num_classes should not be None when box_predictor is not specified")
 
         # 预测特征层的channels
         out_channels = backbone.out_channels
 
         # 若anchor生成器为空，则自动生成针对resnet50_fpn的anchor生成器
         if rpn_anchor_generator is None:
-            anchor_sizes = ((32,), (64,), (128,), (256,), (512,))  # 单元素的元组类型后面必须加逗号（,），不然会被识别成int类型
+            anchor_sizes = ((32,), (64,), (128,), (256,), (512,))  # anchor面积尺寸，单元素的元组类型后面必须加逗号（,），不然会被识别成int类型
             aspect_ratios = ((0.5, 1.0, 2.0),) * len(anchor_sizes)
             rpn_anchor_generator = AnchorsGenerator(
                 anchor_sizes, aspect_ratios
@@ -308,9 +286,7 @@ class FasterRCNN(FasterRCNNBase):
 
         # 生成RPN通过滑动窗口预测网络部分
         if rpn_head is None:
-            rpn_head = RPNHead(
-                out_channels, rpn_anchor_generator.num_anchors_per_location()[0]
-            )
+            rpn_head = RPNHead(out_channels, rpn_anchor_generator.num_anchors_per_location()[0])
 
         # 默认rpn_pre_nms_top_n_train = 2000, rpn_pre_nms_top_n_test = 1000,
         # 默认rpn_post_nms_top_n_train = 2000, rpn_post_nms_top_n_test = 1000,
@@ -340,7 +316,7 @@ class FasterRCNN(FasterRCNNBase):
         # fast RCNN中roi pooling后的展平处理两个全连接层部分
         if box_head is None:
             resolution = box_roi_pool.output_size[0]  # 默认等于7
-            representation_size = 1024
+            representation_size = 1024  # 全连接层Fc1的节点个数
             box_head = TwoMLPHead(
                 out_channels * resolution ** 2,
                 representation_size
@@ -351,7 +327,7 @@ class FasterRCNN(FasterRCNNBase):
             representation_size = 1024
             box_predictor = FastRCNNPredictor(
                 representation_size,
-                num_classes)
+                num_classes)  # num_classes = 20 + 1
 
         # 将roi pooling, box_head以及box_predictor结合在一起
         roi_heads = RoIHeads(

@@ -6,3 +6,12 @@
 # torchvision==0.8.2
 # pycocotools
 # Pillow
+
+torch~=1.12.1+cu113
+torchvision~=0.13.1+cu113
+matplotlib~=3.6.0
+Pillow~=9.2.0
+numpy~=1.23.3
+pycocotools~=2.0.6
+lxml~=4.9.2
+tqdm~=4.65.0
