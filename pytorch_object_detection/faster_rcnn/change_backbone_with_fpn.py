@@ -17,7 +17,7 @@ def create_model(num_classes):
 
     # --- mobilenet_v3_large fpn backbone --- #
     backbone = torchvision.models.mobilenet_v3_large(pretrained=True)
-    # print(backbone)
+    print(backbone)
     return_layers = {"features.6": "0",   # stride 8
                      "features.12": "1",  # stride 16
                      "features.16": "2"}  # stride 32
@@ -78,7 +78,8 @@ def main(args):
         "val": transforms.Compose([transforms.ToTensor()])
     }
 
-    VOC_root = args.data_path
+    # VOC_root = args.data_path
+    VOC_root = "E:/VOCdevkit/"
     # check voc root
     if os.path.exists(os.path.join(VOC_root, "VOCdevkit")) is False:
         raise FileNotFoundError("VOCdevkit dose not in path:'{}'.".format(VOC_root))

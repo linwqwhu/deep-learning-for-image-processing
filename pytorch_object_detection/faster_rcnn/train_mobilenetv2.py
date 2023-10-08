@@ -16,6 +16,7 @@ import torchvision.models.detection.faster_rcnn
 def create_model(num_classes):
     """
     创建模型
+
     Args:
         num_classes:最后的预测类别个数N+1
 
@@ -69,16 +70,18 @@ def main():
 
     # VOC_root = os.getcwd()  # VOCdevkit
     # VOC_root = "../"  # VOCdevkit
-    # VOC_root = "/kaggle/input/"  # VOCdevkit
-    VOC_root = "E:/"  # VOCdevkit
+    # VOC_root = "/kaggle/input/pascal-voc-2012/VOC2012"  # VOCdevkit
+    # VOC_root = "E:/"  # VOCdevkit
+    VOC_root = "E:/VOCdevkit/VOCdevkit/VOC2012"  # VOCdevkit
 
     aspect_ratio_group_factor = 3  # 纵横比组因子
-    batch_size = 8
+    # batch_size = 8
+    batch_size = 1
     amp = False  # 是否使用混合精度训练，需要GPU支持
 
     # check voc root
-    if os.path.exists(os.path.join(VOC_root, "VOCdevkit")) is False:
-        raise FileNotFoundError("VOCdevkit dose not in path:'{}'.".format(VOC_root))
+    # if os.path.exists(os.path.join(VOC_root, "VOCdevkit")) is False:
+    #     raise FileNotFoundError("VOCdevkit dose not in path:'{}'.".format(VOC_root))
 
     # load train data set
     # VOCdevkit -> VOC2012 -> ImageSets -> Main -> train.txt

@@ -90,7 +90,9 @@ class AnchorsGenerator(nn.Module):
         # type: (List[int], List[float], torch.dtype, torch.device) -> Tensor
         """
         计算锚框的大小
+
         compute anchor sizes
+
         Arguments:
             scales: sqrt(anchor_area)
             aspect_ratios: h/w ratios
@@ -140,8 +142,10 @@ class AnchorsGenerator(nn.Module):
     def grid_anchors(self, grid_sizes, strides):
         # type: (List[List[int]], List[List[Tensor]]) -> List[Tensor]
         """
-        anchors position in grid coordinate axis map into origin image
         计算预测特征图对应原始图像上的所有anchors的坐标
+
+        anchors position in grid coordinate axis map into origin image
+
         Args:
             grid_sizes: 预测特征矩阵的height和width
             strides: 预测特征矩阵上一步对应原始图像上的步距（感受野）
@@ -184,8 +188,9 @@ class AnchorsGenerator(nn.Module):
     def cached_grid_anchors(self, grid_sizes, strides):
         # type: (List[List[int]], List[List[Tensor]]) -> List[Tensor]
         """
-        从self._cache中读取指定大小和感受野的anchor，若不存在，则计算依次，并存储到self._cache中
-        将计算得到的所有anchors信息进行缓存
+        从self._cache中读取指定大小和感受野的anchor，若不存在，则计算一次，并存储到self._cache中
+
+        并将计算得到的所有anchors信息进行缓存
         Args:
             grid_sizes:
             strides:
@@ -286,6 +291,7 @@ def permute_and_flatten(layer, N, A, C, H, W):
     # type: (Tensor, int, int, int, int, int) -> Tensor
     """
     调整tensor顺序，并进行reshape
+
     Args:
         layer: 预测特征层上预测的目标概率或bboxes regression参数
         N: batch_size
@@ -409,6 +415,7 @@ class RegionProposalNetwork(torch.nn.Module):
     def pre_nms_top_n(self):
         """
         在应用NMS之前要保留的proposal数量
+
         Returns:
 
         """
@@ -419,6 +426,7 @@ class RegionProposalNetwork(torch.nn.Module):
     def post_nms_top_n(self):
         """
         在应用NMS之后要保留的proposal数量
+
         Returns:
 
         """
@@ -430,6 +438,7 @@ class RegionProposalNetwork(torch.nn.Module):
         # type: (List[Tensor], List[Dict[str, Tensor]]) -> Tuple[List[Tensor], List[Tensor]]
         """
         计算每个anchors最匹配的gt，并划分为正样本，背景以及废弃的样本
+
         Args：
             anchors: (List[Tensor]) 生成的anchor
             targets: (List[Dict[Tensor]) 图像中正样本的boxes，targets= [...,图像n,...]
@@ -636,6 +645,7 @@ class RegionProposalNetwork(torch.nn.Module):
                 ):
         # type: (...) -> Tuple[List[Tensor], Dict[str, Tensor]]
         """
+
         Arguments:
             images (ImageList): 需要预测的图像
             features (Dict[Tensor]): 利用images计算的特征。列表中的每个tensor对应于不同的特征层次

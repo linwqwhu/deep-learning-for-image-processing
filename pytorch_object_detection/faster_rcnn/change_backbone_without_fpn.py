@@ -17,6 +17,9 @@ def create_model(num_classes):
     # vgg16
     backbone = torchvision.models.vgg16_bn(pretrained=True)
     # print(backbone)
+    # 使用create_feature_extractor重构backbone，通过重构的backbone就能够获取中间层的输出
+    # create_feature_extractor根据传入的参数return_nodes找到对应的节点A，
+    # 再反向寻找节点A已使用的节点，将未使用节点删除掉，return_nodes={节点对应的名称:TODO}
     backbone = create_feature_extractor(backbone, return_nodes={"features.42": "0"})
     # out = backbone(torch.rand(1, 3, 224, 224))
     # print(out["0"].shape)

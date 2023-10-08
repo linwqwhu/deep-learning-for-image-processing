@@ -4,7 +4,7 @@ from collections import defaultdict
 import numpy as np
 import copy
 import torch
-import torch._six
+# import torch._six
 from pycocotools.cocoeval import COCOeval
 from pycocotools.coco import COCO
 import pycocotools.mask as mask_util
@@ -234,7 +234,9 @@ maskUtils = mask_util
 def loadRes(self, resFile):
     """
     Load result file and return a result api object.
+
     :param   resFile (str)     : file name of result file
+
     :return: res (obj)         : result api object
     """
     res = COCO()
@@ -242,7 +244,8 @@ def loadRes(self, resFile):
 
     # print('Loading and preparing results...')
     # tic = time.time()
-    if isinstance(resFile, torch._six.string_classes):
+    # if isinstance(resFile, torch._six.string_classes):
+    if isinstance(resFile, str):
         anns = json.load(open(resFile))
     elif type(resFile) == np.ndarray:
         anns = self.loadNumpyAnnotations(resFile)
@@ -296,6 +299,7 @@ def loadRes(self, resFile):
 def evaluate(self):
     '''
     Run per image evaluation on given images and store results (a list of dict) in self.evalImgs
+
     :return: None
     '''
     # tic = time.time()

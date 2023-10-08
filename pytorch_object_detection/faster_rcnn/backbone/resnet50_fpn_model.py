@@ -118,16 +118,15 @@ class ResNet(nn.Module):
 
 def overwrite_eps(model, eps):
     """
-    This method overwrites the default eps values of all the
-    FrozenBatchNorm2d layers of the model with the provided value.
-    This is necessary to address the BC-breaking change introduced
-    by the bug-fix at pytorch/vision#2933. The overwrite is applied
-    only when the pretrained weights are loaded to maintain compatibility
-    with previous versions.
+    此方法使用提供的值覆盖模型的所有FrozenBatchNorm2d层的默认eps值。
+
+    这对于解决pytorch/vision#2933中的错误修复所引入的BC-breaking的更改是必要的。
+
+    只有在加载预训练的权重以保持与以前版本的兼容性时，才会应用覆盖。
 
     Args:
-        model (nn.Module): The model on which we perform the overwrite.
-        eps (float): The new value of eps.
+        model (nn.Module): 将执行覆盖的模型
+        eps (float): eps的新值
     """
     for module in model.modules():
         if isinstance(module, FrozenBatchNorm2d):
@@ -141,6 +140,7 @@ def resnet50_fpn_backbone(pretrain_path="",
                           extra_blocks=None):
     """
     搭建resnet50_fpn——backbone
+
     Args:
         pretrain_path: resnet50的预训练权重，如果不使用就默认为空
         norm_layer: 官方默认的是FrozenBatchNorm2d，即不会更新参数的bn层(因为如果batch_size设置的很小会导致效果更差，还不如不用bn层)

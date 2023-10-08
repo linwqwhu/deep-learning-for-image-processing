@@ -79,9 +79,9 @@ class GeneralizedRCNNTransform(nn.Module):
     def torch_choice(self, k):
         # type: (List[int]) -> int
         """
-        Implements `random.choice` via torch ops so it can be compiled with
-        TorchScript. Remove if https://github.com/pytorch/pytorch/issues/25803
-        is fixed.
+        通过torch操作实现“random.cochoice”，因此可以使用TorchScript进行编译。
+
+        如果https://github.com/pytorch/pytorch/issues/25803修复了，则移除
         """
         index = int(torch.empty(1).uniform_(0., float(len(k))).item())
         return k[index]
@@ -173,11 +173,11 @@ class GeneralizedRCNNTransform(nn.Module):
         Args:
             images: 输入的一批图片
             size_divisible: 将图像高和宽调整到该数的整数倍，
-                            取最大边长的图片为标准，对齐左上角，对于小图片而言缺失的部分用0填充  -》 图片大小统一
-                            好处：保持原始图像的比例，新填充进来的全部是0，不影响结果
+                取最大边长的图片为标准，对齐左上角，对于小图片而言缺失的部分用0填充  -》 图片大小统一
+                好处：保持原始图像的比例，新填充进来的全部是0，不影响结果
 
         Returns:
-            batched_imgs: 打包成一个batch后的tensor数据
+                batched_imgs: 打包成一个batch后的tensor数据
         """
 
         if torchvision._is_tracing():
@@ -218,7 +218,7 @@ class GeneralizedRCNNTransform(nn.Module):
         对网络的预测结果进行后处理（主要将bboxes还原到原图像尺度上）
 
         Args:
-            result: list(dict), 网络的预测结果, len(result) == batch_size
+            result: list(dict), 网络的预测结果, 包含目标边界框、坐标信息、标签值及概率，len(result) == batch_size
             image_shapes: list(torch.Size), 图像预处理缩放后的尺寸, len(image_shapes) == batch_size
             original_image_sizes: list(torch.Size), 图像的原始尺寸, len(original_image_sizes) == batch_size
 
@@ -280,12 +280,14 @@ class GeneralizedRCNNTransform(nn.Module):
 def resize_boxes(boxes, original_size, new_size):
     # type: (Tensor, List[int], List[int]) -> Tensor
     """
-    将boxes参数根据图像的缩放情况进行相应缩放
+    将boxes参数根据图像的缩放情况进行相应缩放，由original_size转换为new_size
 
     Arguments:
+        boxes: 需要缩放的边界框
         original_size: 图像缩放前的尺寸
         new_size: 图像缩放后的尺寸
     """
+    # 需要的图像尺度/当前的图像尺度，得到一个缩放比例
     ratios = [
         torch.tensor(s, dtype=torch.float32, device=boxes.device) /
         torch.tensor(s_orig, dtype=torch.float32, device=boxes.device)

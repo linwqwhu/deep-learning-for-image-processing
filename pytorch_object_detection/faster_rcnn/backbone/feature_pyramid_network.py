@@ -10,20 +10,16 @@ from torch.jit.annotations import Tuple, List, Dict
 
 class IntermediateLayerGetter(nn.ModuleDict):
     """
-    Module wrapper that returns intermediate layers from a model
-    It has a strong assumption that the modules have been registered
-    into the model in the same order as they are used.
-    This means that one should **not** reuse the same nn.Module
-    twice in the forward if you want this to work.
-    Additionally, it is only able to query submodules that are directly
-    assigned to the model. So if `model` is passed, `model.feature1` can
-    be returned, but not `model.feature1.layer2`.
+    返回模型的中间层的模块包装器
+
+    使用前提：模块已按照与 使用的 相同顺序注册到模型中。
+    这意味着，不应该在forward中重复使用同一个nn.Module两次。
+    而且，它只能查询直接分配给模型的子模块。因此，如果传递了“model”，
+    则可以返回“model.feature1”，但不能返回“model.feature1.layer2”。
+
     Arguments:
-        model (nn.Module): model on which we will extract the features
-        return_layers (Dict[name, new_name]): a dict containing the names
-            of the modules for which the activations will be returned as
-            the key of the dict, and the value of the dict is the name
-            of the returned activation (which the user can specify).
+        model (nn.Module): 提取特征的模型
+        return_layers (Dict[name, new_name]): key=将返回激活的模块的名称，value=返回激活的名称（用户可以指定）。
     """
     __annotations__ = {
         "return_layers": Dict[str, str],
@@ -63,20 +59,17 @@ class IntermediateLayerGetter(nn.ModuleDict):
 
 class FeaturePyramidNetwork(nn.Module):
     """
-    Module that adds a FPN from on top of a set of feature maps. This is based on
-    `"Feature Pyramid Network for Object Detection" <https://arxiv.org/abs/1612.03144>`_.
-    The feature maps are currently supposed to be in increasing depth
-    order.
-    The input to the model is expected to be an OrderedDict[Tensor], containing
-    the feature maps on top of which the FPN will be added.
+    从一组特征图的顶部添加FPN的模块。
+
+    这是基于“用于对象检测的特征金字塔网络”<https://arxiv.org/abs/1612.03144>`_。
+    特征图在输入时应按深度递增的顺序排列好
+    输入类型为OrderedDict[Tensor]，包含将在其上添加FPN的特征图。
+
     Arguments:
-        in_channels_list (list[int]): number of channels for each feature map that
-            is passed to the module
-        out_channels (int): number of channels of the FPN representation
-        extra_blocks (ExtraFPNBlock or None): if provided, extra operations will
-            be performed. It is expected to take the fpn features, the original
-            features and the names of the original features as input, and returns
-            a new list of feature maps and their corresponding names
+        in_channels_list (list[int]): 传递到模块的每个特征图的通道数
+        out_channels (int): FPN呈现的通道数
+        extra_blocks (ExtraFPNBlock or None): 如果提供，将执行额外的操作。
+            将fpn特征、原始特征 和 原始特征的名称 作为输入，并返回一个新的特征图列表及其对应的名称
     """
 
     def __init__(self, in_channels_list, out_channels, extra_blocks=None):
@@ -103,8 +96,14 @@ class FeaturePyramidNetwork(nn.Module):
 
     def get_result_from_inner_blocks(self, x: Tensor, idx: int) -> Tensor:
         """
-        This is equivalent to self.inner_blocks[idx](x),
-        but torchscript doesn't support this yet
+        这相当于self.inner_blocks[idx](x)，但torchscript还不支持这一点
+
+        Args:
+            x:
+            idx:
+
+        Returns:
+
         """
         num_blocks = len(self.inner_blocks)
         if idx < 0:
@@ -119,8 +118,14 @@ class FeaturePyramidNetwork(nn.Module):
 
     def get_result_from_layer_blocks(self, x: Tensor, idx: int) -> Tensor:
         """
-        This is equivalent to self.layer_blocks[idx](x),
-        but torchscript doesn't support this yet
+        这相当于self.layer_blocks[idx](x)，但torchscript还不支持这一点
+
+        Args:
+            x:
+            idx:
+
+        Returns:
+
         """
         num_blocks = len(self.layer_blocks)
         if idx < 0:
@@ -135,12 +140,13 @@ class FeaturePyramidNetwork(nn.Module):
 
     def forward(self, x: Dict[str, Tensor]) -> Dict[str, Tensor]:
         """
-        Computes the FPN for a set of feature maps.
+        计算一组特征图的FPN
+
         Arguments:
-            x (OrderedDict[Tensor]): feature maps for each feature level.
+            x (OrderedDict[Tensor]): 每个特征层的特征图
+
         Returns:
-            results (OrderedDict[Tensor]): feature maps after FPN layers.
-                They are ordered from highest resolution first.
+            results (OrderedDict[Tensor]): FPN层后的特征图，从最高分辨率开始排序的（降序）。
         """
         # unpack OrderedDict into two lists for easier handling
         names = list(x.keys())
@@ -174,6 +180,8 @@ class FeaturePyramidNetwork(nn.Module):
 
 class LastLevelMaxPool(torch.nn.Module):
     """
+    在最后一个特征层的顶部应用max_pool2d
+
     Applies a max_pool2d on top of the last feature map
     """
 
@@ -185,22 +193,20 @@ class LastLevelMaxPool(torch.nn.Module):
 
 class BackboneWithFPN(nn.Module):
     """
-    Adds a FPN on top of a model.
-    Internally, it uses torchvision.models._utils.IntermediateLayerGetter to
-    extract a submodel that returns the feature maps specified in return_layers.
-    The same limitations of IntermediatLayerGetter apply here.
+    在模型顶部添加FPN
+
+    使用torchvision.models._utils.IntermediateLayerGetter来提取一个子模型，该子模型返回return_layers中指定的特征图。
+
+    IntermediatLayerGetter的限制也适用于此。
+
     Arguments:
         backbone (nn.Module)
-        return_layers (Dict[name, new_name]): a dict containing the names
-            of the modules for which the activations will be returned as
-            the key of the dict, and the value of the dict is the name
-            of the returned activation (which the user can specify).
-        in_channels_list (List[int]): number of channels for each feature map
-            that is returned, in the order they are present in the OrderedDict
-        out_channels (int): number of channels in the FPN.
+        return_layers (Dict[name, new_name]): key=将返回激活的模块的名称，value=返回激活的名称（用户可以指定）
+        in_channels_list (List[int]): 返回的每个特征图的通道数，按它们在OrderedDict中的出现顺序
+        out_channels (int): FPN中的通道数
         extra_blocks: ExtraFPNBlock
     Attributes:
-        out_channels (int): the number of channels in the FPN
+        out_channels (int): FPN中的通道数
     """
 
     def __init__(self,
@@ -217,6 +223,7 @@ class BackboneWithFPN(nn.Module):
 
         if re_getter is True:
             assert return_layers is not None
+            # 这个是官方提供的，只能获取module.children()，并不能获取module.children().children()或更下的
             self.body = IntermediateLayerGetter(backbone, return_layers=return_layers)
         else:
             self.body = backbone

@@ -19,8 +19,9 @@ from train_utils import get_coco_api_from_dataset, CocoEvaluator
 
 def summarize(self, catId=None):
     """
-    Compute and display summary metrics for evaluation results.
-    Note this functin can *only* be applied on the default parameter setting
+    计算并显示评估结果的摘要度量summary metrics
+
+    请注意，此函数只能应用于默认参数设置
     """
 
     def _summarize(ap=1, iouThr=None, areaRng='all', maxDets=100):

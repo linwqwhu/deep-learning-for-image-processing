@@ -23,8 +23,10 @@ def _repeat_to_at_least(iterable, n):
 class GroupedBatchSampler(BatchSampler):
     """
     包装另一个采样器以产生一个mini_batch索引。
+
     强制一个batch只包含来自同一组的元素（具有相同宽高比）。
     它还试图提供遵循尽可能接近原始采样器规则的规则的mini-batches。
+
     Wraps another sampler to yield a mini-batch of indices.
     It enforces that the batch only contain elements from the same group.
     It also tries to provide mini-batches which follows an ordering which is
@@ -124,6 +126,7 @@ def _compute_aspect_ratios_slow(dataset, indices=None):
 def _compute_aspect_ratios_custom_dataset(dataset, indices=None):
     """
     计算常规数据集中图片的宽高比
+
     Args:
         dataset: 数据集
         indices: 需要计算的图片范围，默认为None，即计算全部
@@ -155,6 +158,7 @@ def _compute_aspect_ratios_coco_dataset(dataset, indices=None):
 def _compute_aspect_ratios_voc_dataset(dataset, indices=None):
     """
     计算VOC数据集中图片的宽高比
+
     Args:
         dataset: 数据集
         indices: 需要计算的图片范围，默认为None，即计算全部
@@ -186,6 +190,7 @@ def _compute_aspect_ratios_subset_dataset(dataset, indices=None):
 def compute_aspect_ratios(dataset, indices=None):
     """
     计算数据集中图片的宽高比
+
     Args:
         dataset: 数据集
         indices: 需要计算的图片范围，默认为None，即计算全部
@@ -213,6 +218,7 @@ def compute_aspect_ratios(dataset, indices=None):
 def _quantize(x, bins):
     """
     统计所有图像比例在bins区间中的位置索引
+
     Args:
         x:
         bins: 区间
@@ -230,6 +236,7 @@ def _quantize(x, bins):
 def create_aspect_ratio_groups(dataset, k=0):
     """
     统计所有图像宽高比例在bins区间中的位置索引
+
     Args:
         dataset:
         k: 区间划分数，将[0.5, 2]区间划分成2*k等份

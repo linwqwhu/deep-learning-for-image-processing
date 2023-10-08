@@ -16,8 +16,6 @@ class FasterRCNNBase(nn.Module):
     """
     Generalized R-CNN的主要部分
 
-    Main class for Generalized R-CNN.
-
     Arguments:
         backbone (nn.Module):
         rpn (nn.Module):
@@ -107,8 +105,8 @@ class FasterRCNNBase(nn.Module):
         detections = self.transform.postprocess(detections, images.image_sizes, original_image_sizes)
 
         losses = {}
-        losses.update(detector_losses)
-        losses.update(proposal_losses)
+        losses.update(detector_losses)  # 把detector_losses添加到losses中
+        losses.update(proposal_losses)  # 把proposal_losses添加到losses中
 
         if torch.jit.is_scripting():
             if not self._has_warned:

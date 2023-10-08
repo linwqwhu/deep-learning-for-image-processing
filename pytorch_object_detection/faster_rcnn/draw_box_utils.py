@@ -104,6 +104,7 @@ def draw_objs(image: Image,
               draw_masks_on_image: bool = False):
     """
     将目标边界框信息，类别信息，mask信息绘制在图片上
+
     Args:
         image: 需要绘制的图片
         boxes: 目标边界框信息

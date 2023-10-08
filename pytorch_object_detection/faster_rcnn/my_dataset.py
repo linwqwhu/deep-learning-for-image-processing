@@ -12,21 +12,27 @@ from lxml import etree
 class VOCDataSet(Dataset):
     """
     读取解析PASCAL VOC2007/2012数据集
-    self.root: 数据集路径 VOCdevkit/VOC2012
-    self.img_root: 图片路径 VOCdevkit/VOC2012/JPEGImages
-    self.annotations_root: 注解路径 VOCdevkit/VOC2012/Annotations
-    self.xml_list: train.txt 或 val.txt 中含目标的文件列表 [...,2007_000027.xml,...]
-    self.class_dict: 类别及其对应的索引值 {...,"dog":12,...}
-    self.transforms: 图片转换方法
+
+    Attributes:
+        self.root: 数据集路径 VOCdevkit/VOC2012
+        self.img_root: 图片路径 VOCdevkit/VOC2012/JPEGImages
+        self.annotations_root: 注解路径 VOCdevkit/VOC2012/Annotations
+        self.xml_list: train.txt 或 val.txt 中含目标的文件列表 [...,2007_000027.xml,...]
+        self.class_dict: 类别及其对应的索引值 {...,"dog":12,...}
+        self.transforms: 图片转换方法
     """
 
     def __init__(self, voc_root, year="2012", transforms=None, txt_name: str = "train.txt"):
         assert year in ["2007", "2012"], "year must be in ['2007', '2012']"
         # 增加容错能力
-        if "VOCdevkit" in voc_root:
-            self.root = os.path.join(voc_root, f"VOC{year}")
-        else:
-            self.root = os.path.join(voc_root, "VOCdevkit", f"VOC{year}")
+        # if "VOCdevkit" in voc_root:
+        #     self.root = os.path.join(voc_root, f"VOC{year}")
+        # else:
+        #     self.root = os.path.join(voc_root, "VOCdevkit", f"VOC{year}")
+        #
+
+        # self.root = os.path.join(voc_root, "VOCdevkit", f"VOC{year}")
+        self.root = voc_root
 
         self.img_root = os.path.join(self.root, "JPEGImages")
         self.annotations_root = os.path.join(self.root, "Annotations")
@@ -78,6 +84,7 @@ class VOCDataSet(Dataset):
     def __getitem__(self, idx) -> (Any, {}):
         """
         根据图片索引值获取 image, target
+
         Args:
             idx: 索引值
 
@@ -148,6 +155,7 @@ class VOCDataSet(Dataset):
     def get_height_and_width(self, idx) -> (int, int):
         """
         获取图片的高度和宽度(height, width)
+
         Args:
             idx: 图片索引值
 
@@ -168,6 +176,7 @@ class VOCDataSet(Dataset):
     def parse_xml_to_dict(self, xml):
         """
         将xml文件解析成字典形式，参考tensorflow的recursive_parse_xml_to_dict
+
         Args:
             xml: 使用lxml.etree.fromstring()方法将xml文件转化为的Element对象
 
@@ -192,6 +201,7 @@ class VOCDataSet(Dataset):
     def coco_index(self, idx):
         """
         该方法是专门为pycocotools统计标签信息准备，不对图像和标签作任何处理
+
         由于不用去读取图片，可大幅缩减统计时间
 
         Args:
@@ -241,7 +251,9 @@ class VOCDataSet(Dataset):
     def collate_fn(batch):
         """
         将dataset返回的图像信息image和target合并在一起
+
         通过非关键字参数将 输入数据 输入到zip函数中进行打包，再将打包信息转成元组形式
+
         Args:
             batch:
 

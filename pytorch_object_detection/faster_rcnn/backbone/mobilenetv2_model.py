@@ -5,9 +5,10 @@ from torchvision.ops import misc
 
 def _make_divisible(ch, divisor=8, min_ch=None):
     """
-    This function is taken from the original tf repo.
-    It ensures that all layers have a channel number that is divisible by 8
-    It can be seen here:
+    此函数取自原始的tf repo。
+    它确保所有层都有一个可被8整除的通道数
+
+    参考：
     https://github.com/tensorflow/models/blob/master/research/slim/nets/mobilenet/mobilenet.py
     """
     if min_ch is None:

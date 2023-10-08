@@ -7,7 +7,7 @@ import torchvision
 def nms(boxes, scores, iou_threshold):
     # type: (Tensor, Tensor, float) -> Tensor
     """
-    根据box在并集上的交集（IoU）对盒子执行非最大值抑制（NMS）。
+    根据box的交并比（IoU）对box执行非最大值抑制（NMS）。
 
     NMS迭代地移除具有大于IoU_threshold的IoU的较低得分框和另一个（较高得分）框。
 

@@ -22,10 +22,11 @@ class BalancedPositiveNegativeSampler(object):
     def __call__(self, matched_idxs):
         # type: (List[Tensor]) -> Tuple[List[Tensor], List[Tensor]]
         """
+
         Arguments:
             matched_idxs: 包含-1、0或正值的张量列表。
                 每个张量对应于一个特定的图像。
-                -1的值被忽略，0被视为负值，>0被视为正值。
+                -1的值被忽略，0被视为负样本，>0被视为正样本。
                 list of tensors containing -1, 0 or positive values.
                 Each tensor corresponds to a specific image.
                 -1 values are ignored, 0 are considered as negatives and > 0 as positives.
@@ -87,6 +88,7 @@ def encode_boxes(reference_boxes, proposals, weights):
     # type: (torch.Tensor, torch.Tensor, torch.Tensor) -> torch.Tensor
     """
     编码一组关于某些参考框的建议
+
     Encode a set of proposals with respect to some reference boxes
 
     Arguments:
