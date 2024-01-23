@@ -52,7 +52,7 @@ def create_model(num_classes):
 
 def main():
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    print("Using {} device training.".format(device.type))
+    print("\nUsing {} device training.".format(device.type))
 
     # 用来保存coco_info的文件
     results_file = "results{}.txt".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
@@ -153,7 +153,8 @@ def main():
     optimizer = torch.optim.SGD(params, lr=0.005,
                                 momentum=0.9, weight_decay=0.0005)
 
-    init_epochs = 5
+    # init_epochs = 5
+    init_epochs = 1
     for epoch in range(init_epochs):
         # train for one epoch, printing every 10 iterations
         mean_loss, lr = utils.train_one_epoch(model, optimizer, train_data_loader,
@@ -198,7 +199,8 @@ def main():
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
                                                    step_size=3,
                                                    gamma=0.33)
-    num_epochs = 20
+    # num_epochs = 20
+    num_epochs = 1
     for epoch in range(init_epochs, num_epochs + init_epochs, 1):
         # train for one epoch, printing every 50 iterations
         mean_loss, lr = utils.train_one_epoch(model, optimizer, train_data_loader,

@@ -6,9 +6,15 @@
 """
 import os
 
-train_annotation_dir = "./my_yolo_dataset/train/labels"
-val_annotation_dir = "./my_yolo_dataset/val/labels"
+# 训练集的labels目录路径
+# train_annotation_dir = "./my_yolo_dataset/train/labels"
+train_annotation_dir = "E:/VOCdevkit/VOCdevkit/YOLODATA/train/labels"
+# 验证集的labels目录路径
+# val_annotation_dir = "./my_yolo_dataset/val/labels"
+val_annotation_dir = "E:/VOCdevkit/VOCdevkit/YOLODATA/val/labels"
+# 上一步生成的my_data_label.names文件路径(如果没有该文件，可以自己手动编辑一个txt文档，然后重命名为.names格式即可)
 classes_label = "./data/my_data_label.names"
+# 原始yolov3-spp.cfg网络结构配置文件
 cfg_path = "./cfg/yolov3-spp.cfg"
 
 assert os.path.exists(train_annotation_dir), "train_annotation_dir not exist!"

@@ -25,6 +25,7 @@ class GroupedBatchSampler(BatchSampler):
     包装另一个采样器以产生一个mini_batch索引。
 
     强制一个batch只包含来自同一组的元素（具有相同宽高比）。
+
     它还试图提供遵循尽可能接近原始采样器规则的规则的mini-batches。
 
     Wraps another sampler to yield a mini-batch of indices.
@@ -125,11 +126,11 @@ def _compute_aspect_ratios_slow(dataset, indices=None):
 
 def _compute_aspect_ratios_custom_dataset(dataset, indices=None):
     """
-    计算常规数据集中图片的宽高比
+    计算常规数据集中每张图片的宽高比
 
     Args:
         dataset: 数据集
-        indices: 需要计算的图片范围，默认为None，即计算全部
+        indices (list[int]): 需要计算的图片范围，默认为None，即计算全部
 
     Returns:
         aspect_ratios: list[float] 图片的宽高比
@@ -238,15 +239,15 @@ def create_aspect_ratio_groups(dataset, k=0):
     统计所有图像宽高比例在bins区间中的位置索引
 
     Args:
-        dataset:
-        k: 区间划分数，将[0.5, 2]区间划分成2*k等份
+        dataset: 数据集
+        k: 区间划分数，将[0.5, 2]区间划分成2*k份
 
     Returns:
 
     """
     # 计算所有数据集中的图片width/height比例
     aspect_ratios = compute_aspect_ratios(dataset)
-    # 将[0.5, 2]区间划分成2*k等份(2k+1个点，2k个区间)
+    # np.linspace(-1, 1, 2 * k + 1)将[-1, 1]区间划分成2*k等份(2k+1个点，2k个区间)，接着取2的次方，bins为[2^(-1),....,2^1],即将[0.5,2]区间按等比数列划分为2k份
     bins = (2 ** np.linspace(-1, 1, 2 * k + 1)).tolist() if k > 0 else [1.0]
 
     # 统计所有图像比例在bins区间中的位置索引

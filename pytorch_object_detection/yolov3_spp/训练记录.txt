@@ -1,0 +1,60 @@
+已连接到 pydev 调试器(内部版本号 221.5787.24)Namespace(epochs=2, batch_size=1, cfg='cfg/my_yolov3.cfg', data='data/my_data.data', hyp='cfg/hyp.yaml', multi_scale=True, img_size=512, rect=False, savebest=False, notest=False, cache_images=False, weights='weights/yolov3-spp-ultralytics-512.pt', name='', device='cuda:0', single_cls=False, freeze_layers=False, amp=False)
+Start Tensorboard with "tensorboard --logdir=runs", view at http://localhost:6006/
+Using cuda device training.
+Using multi_scale training, image range[320, 736]
+Model Summary: 225 layers, 6.26756e+07 parameters, 6.26756e+07 gradients
+Caching labels (4 found, 0 missing, 0 empty, 0 duplicate, for 4 images): 100%|██████████| 4/4 [00:00<?, ?it/s]
+Caching labels (4 found, 0 missing, 0 empty, 0 duplicate, for 4 images): 100%|██████████| 4/4 [00:00<?, ?it/s]
+loading eval info for coco tools.: 100%|██████████| 4/4 [00:00<?, ?it/s]
+creating index...
+index created!
+starting traning for 2 epochs...
+Using 0 dataloader workers
+Epoch: [0]  [0/4]  eta: 0:00:08.305239  lr: 0.000001  loss: 21.2784 (21.2784)  box_loss: 7.4323 (7.4323)  obj_loss: 8.1969 (8.1969)  class_loss: 5.6492 (5.6492)  time: 2.0763  data: 0.0469  max mem: 483
+Epoch: [0]  [3/4]  eta: 0:00:00.918238  lr: 0.001000  loss: 18.2877 (17.2066)  box_loss: 7.3311 (6.0473)  obj_loss: 5.3032 (6.2936)  class_loss: 5.6534 (4.8657)  time: 0.9182  data: 0.0391  max mem: 762
+Epoch: [0] Total time: 0:00:03 (0.9182 s / it)
+D:\Software\Python\Python310\lib\site-packages\torch\functional.py:478: UserWarning: torch.meshgrid: in an upcoming release, it will be required to pass the indexing argument. (Triggered internally at  ..\aten\src\ATen\native\TensorShape.cpp:2895.)
+  return _VF.meshgrid(tensors, **kwargs)  # type: ignore[attr-defined]
+Test:   [0/4]  eta: 0:00:00.764305  model_time: 0.1719 (0.1719)  evaluator_time: 0.0000 (0.0000)  time: 0.1911  data: 0.0192  max mem: 762
+Test:   [3/4]  eta: 0:00:00.149495  model_time: 0.1250 (0.1369)  evaluator_time: 0.0156 (0.0039)  time: 0.1495  data: 0.0087  max mem: 762
+Test:  Total time: 0:00:00 (0.1495 s / it)
+Averaged stats: model_time: 0.1250 (0.1369)  evaluator_time: 0.0156 (0.0039)
+Accumulating evaluation results...
+DONE (t=0.02s).
+IoU metric: bbox
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.000
+ Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.000
+ Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.000
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = -1.000
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.000
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.000
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.000
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.000
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.000
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = -1.000
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.000
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.000
+Epoch: [1]  [0/4]  eta: 0:00:02.240537  lr: 0.000505  loss: 15.3044 (15.3044)  box_loss: 6.2048 (6.2048)  obj_loss: 4.2010 (4.2010)  class_loss: 4.8985 (4.8985)  time: 0.5601  data: 0.0313  max mem: 794
+Epoch: [1]  [3/4]  eta: 0:00:00.569438  lr: 0.000505  loss: 11.7301 (13.8777)  box_loss: 4.4814 (5.8462)  obj_loss: 3.5793 (3.8362)  class_loss: 3.6694 (4.1954)  time: 0.5694  data: 0.0313  max mem: 798
+Epoch: [1] Total time: 0:00:02 (0.5694 s / it)
+Test:   [0/4]  eta: 0:00:00.549340  model_time: 0.1373 (0.1373)  evaluator_time: 0.0000 (0.0000)  time: 0.1373  data: 0.0000  max mem: 798
+Test:   [3/4]  eta: 0:00:00.134948  model_time: 0.1250 (0.1271)  evaluator_time: 0.0000 (0.0039)  time: 0.1349  data: 0.0039  max mem: 798
+Test:  Total time: 0:00:00 (0.1349 s / it)
+Averaged stats: model_time: 0.1250 (0.1271)  evaluator_time: 0.0000 (0.0039)
+Accumulating evaluation results...
+DONE (t=0.03s).
+IoU metric: bbox
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.000
+ Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.000
+ Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.000
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = -1.000
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.000
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.000
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.000
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.000
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.000
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = -1.000
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.000
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.000
+
+进程已结束,退出代码0

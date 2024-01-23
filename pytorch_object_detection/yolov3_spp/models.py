@@ -6,6 +6,8 @@ ONNX_EXPORT = False
 
 def create_modules(modules_defs: list, img_size):
     """
+    根据module_defs中的模块配置构建层块的模块列表
+
     Constructs module list of layer blocks from module configuration in module_defs
     :param modules_defs: 通过.cfg文件解析得到的每个层结构的列表
     :param img_size:
@@ -15,10 +17,10 @@ def create_modules(modules_defs: list, img_size):
     img_size = [img_size] * 2 if isinstance(img_size, int) else img_size
     # 删除解析cfg列表中的第一个配置(对应[net]的配置)
     modules_defs.pop(0)  # cfg training hyperparams (unused)
-    output_filters = [3]  # input channels
+    output_filters = [3]  # input channels，记录的是模块输出通道的数量
     module_list = nn.ModuleList()
     # 统计哪些特征层的输出会被后续的层使用到(可能是特征融合，也可能是拼接)
-    routs = []  # list of layers which rout to deeper layers
+    routs = []  # list of layers which rout to deeper layers，记录需要 输出的模块 的索引（output_filters的索引-1）
     yolo_index = -1
 
     # 遍历搭建每个层结构
@@ -26,6 +28,16 @@ def create_modules(modules_defs: list, img_size):
         modules = nn.Sequential()
 
         if mdef["type"] == "convolutional":
+            """
+            举例：
+            [convolutional]    
+            batch_normalize=1
+            filters=64
+            size=3
+            stride=2          
+            pad=1
+            activation=leaky
+            """
             bn = mdef["batch_normalize"]  # 1 or 0 / use or not
             filters = mdef["filters"]
             k = mdef["size"]  # kernel size
@@ -47,6 +59,7 @@ def create_modules(modules_defs: list, img_size):
                 routs.append(i)  # detection output (goes into yolo layer)
 
             if mdef["activation"] == "leaky":
+                # 除了三个perdictor对应的convolutional的activation是linear，其它的全部都是leaky
                 modules.add_module("activation", nn.LeakyReLU(0.1, inplace=True))
             else:
                 pass
@@ -55,11 +68,23 @@ def create_modules(modules_defs: list, img_size):
             pass
 
         elif mdef["type"] == "maxpool":
+            """
+            只有spp层中用到maxpool
+            举例：
+            [maxpool]，maxpool层
+            stride=1， 池化层的步距
+            size=5，池化核尺寸，padding=(size-1)//2
+            """
             k = mdef["size"]  # kernel size
             stride = mdef["stride"]
             modules = nn.MaxPool2d(kernel_size=k, stride=stride, padding=(k - 1) // 2)
 
         elif mdef["type"] == "upsample":
+            """
+            举例：
+            [upsample]
+            stride=2， 上采样倍率
+            """
             if ONNX_EXPORT:  # explicitly state size, avoid scale_factor
                 g = (yolo_index + 1) * 2 / 32  # gain
                 modules = nn.Upsample(size=tuple(int(x * g) for x in img_size))
@@ -67,19 +92,47 @@ def create_modules(modules_defs: list, img_size):
                 modules = nn.Upsample(scale_factor=mdef["stride"])
 
         elif mdef["type"] == "route":  # [-2],  [-1,-3,-5,-6], [-1, 61]
+            """
+            举例：
+            [route]
+            layers = -1, 61  指向某一层的输出 或 拼接多层输出
+            """
             layers = mdef["layers"]
+            # 当l>0时，正着数，从左边往右边数，第0个位置为输出图片的通道数3，需要加1
+            # 当l<0时，倒着数，从右边往左边数，可以直接数到
             filters = sum([output_filters[l + 1 if l > 0 else l] for l in layers])
+            # 记录使用了哪些层的输出（模块索引），i为route所在层，
+            # extend是将一个可迭代的序列一个一个元素添加到末尾，用append会变成添加一个[序列]在末尾
             routs.extend([i + l if l < 0 else l for l in layers])
             modules = FeatureConcat(layers=layers)
 
         elif mdef["type"] == "shortcut":
-            layers = mdef["from"]
+            """
+            举例：
+            [shortcut]   这里是channel通道融合add，而route是channel通道拼接concat
+            from=-3   ，最近一层(-1)与前面哪一层的输出进行融合
+            activation=linear   ，线性激活（对输出不做任何处理）
+            """
+            layers = mdef["from"]  # 列表的形式，举例[-3]
             filters = output_filters[-1]
             # routs.extend([i + l if l < 0 else l for l in layers])
-            routs.append(i + layers[0])
+            # i为当前层的索引，extend是将一个可迭代的序列一个一个元素添加到末尾，用append会变成添加一个[序列]在末尾
+            routs.append(i + layers[0])  # 举例：使用layers[0]取出-3， --> routs=[[...], [...], ..., [i,3]]
             modules = WeightedFeatureFusion(layers=layers, weight="weights_type" in mdef)
 
         elif mdef["type"] == "yolo":
+            """
+            举例：
+            [yolo]
+            mask = 6,7,8  ，代表使用下面的那几个anchors，从0开始数，这里6、7、8分别对应的是116,90、156,198、373,326
+            anchors = 10,13,  16,30,  33,23,  30,61,  62,45,  59,119,  116,90,  156,198,  373,326
+            classes=20 检测的类别个数
+            num=9
+            jitter=.3
+            ignore_thresh = .7
+            truth_thresh = 1
+            random=1
+            """
             yolo_index += 1  # 记录是第几个yolo_layer [0, 1, 2]
             stride = [32, 16, 8]  # 预测特征层对应原图的缩放比例
 
@@ -114,21 +167,22 @@ def create_modules(modules_defs: list, img_size):
 
 class YOLOLayer(nn.Module):
     """
-    对YOLO的输出进行处理
+    对YOLO的输出predictor进行处理
     """
+
     def __init__(self, anchors, nc, img_size, stride):
         super(YOLOLayer, self).__init__()
         self.anchors = torch.Tensor(anchors)
         self.stride = stride  # layer stride 特征图上一步对应原图上的步距 [32, 16, 8]
         self.na = len(anchors)  # number of anchors (3)
-        self.nc = nc  # number of classes (80)
-        self.no = nc + 5  # number of outputs (85: x, y, w, h, obj, cls1, ...)
+        self.nc = nc  # number of classes COCO：80，VOC：20
+        self.no = nc + 5  # 每个anchor对应的预测个数 number of outputs COCO：(85: x, y, w, h, obj, cls1, ...) VOC：25
         self.nx, self.ny, self.ng = 0, 0, (0, 0)  # initialize number of x, y gridpoints
         # 将anchors大小缩放到grid尺度
         self.anchor_vec = self.anchors / self.stride
-        # batch_size, na, grid_h, grid_w, wh,
+        # (3,2) --> (1,3,1,1,2)，依次对应 batch_size, na, grid_h, grid_w, wh。 其中wh=2说明有两个值h和w
         # 值为1的维度对应的值不是固定值，后续操作可根据broadcast广播机制自动扩充
-        self.anchor_wh = self.anchor_vec.view(1, self.na, 1, 1, 2)
+        self.anchor_wh = self.anchor_vec.view(1, self.na, 1, 1, 2)  # anchor缩放后的大小
         self.grid = None
 
         if ONNX_EXPORT:
@@ -138,7 +192,8 @@ class YOLOLayer(nn.Module):
     def create_grids(self, ng=(13, 13), device="cpu"):
         """
         更新grids信息并生成新的grids参数
-        :param ng: 特征图大小
+
+        :param ng: 特征图大小，宽度和高度
         :param device:
         :return:
         """
@@ -147,23 +202,31 @@ class YOLOLayer(nn.Module):
 
         # build xy offsets 构建每个cell处的anchor的xy偏移量(在feature map上的)
         if not self.training:  # 训练模式不需要回归到最终预测boxes
+            # xv、yv分别记录的是划分网格的左上角对应的（x，y）坐标对应的部分
+            # 如 xv=[ [0,1,2,3],[0,1,2,3],[0,1,2,3],[0,1,2,3]]
+            # yv= [[0,0,0,0],[1,1,1,1],[2,2,2,2],[3,3,3,3]]
             yv, xv = torch.meshgrid([torch.arange(self.ny, device=device),
                                      torch.arange(self.nx, device=device)])
             # batch_size, na, grid_h, grid_w, wh
-            self.grid = torch.stack((xv, yv), 2).view((1, 1, self.ny, self.nx, 2)).float()
+            self.grid = torch.stack((xv, yv), 2).view((1, 1, self.ny, self.nx, 2)).float()  # 网格偏移量
 
         if self.anchor_vec.device != device:
             self.anchor_vec = self.anchor_vec.to(device)
             self.anchor_wh = self.anchor_wh.to(device)
 
     def forward(self, p):
+        """
+        p对应的是predictor预测的参数, [batch_size, predict_param(255), grid(13), grid(13)]
+        """
         if ONNX_EXPORT:
             bs = 1  # batch size
         else:
             bs, _, ny, nx = p.shape  # batch_size, predict_param(255), grid(13), grid(13)
+            # 判断对self中的nx和ny是否与 预测的一样，如果不一样则重新生成
             if (self.nx, self.ny) != (nx, ny) or self.grid is None:  # fix no grid bug
                 self.create_grids((nx, ny), p.device)
 
+        # 注释的是COCO数据集的
         # view: (batch_size, 255, 13, 13) -> (batch_size, 3, 85, 13, 13)
         # permute: (batch_size, 3, 85, 13, 13) -> (batch_size, 3, 13, 13, 85)
         # [bs, anchor, grid, grid, xywh + obj + classes]
@@ -189,19 +252,21 @@ class YOLOLayer(nn.Module):
             p[:, 5:] = p[:, 5:self.no] * p[:, 4:5]
             return p
         else:  # inference
-            # [bs, anchor, grid, grid, xywh + obj + classes]
-            io = p.clone()  # inference output
-            io[..., :2] = torch.sigmoid(io[..., :2]) + self.grid  # xy 计算在feature map上的xy坐标
+            # (bs, anchor, grid, grid, xywh + obj + classes)
+            io = p.clone()  # inference output，p中包含了针对所有anchors的预测回归参数xy
+            # 回归公式
+            io[..., :2] = torch.sigmoid(io[..., :2]) + self.grid  # xy 计算在feature map上的xy坐标，三个点表示取前面所有维度
             io[..., 2:4] = torch.exp(io[..., 2:4]) * self.anchor_wh  # wh yolo method 计算在feature map上的wh
             io[..., :4] *= self.stride  # 换算映射回原图尺度
-            torch.sigmoid_(io[..., 4:])
-            return io.view(bs, -1, self.no), p  # view [1, 3, 13, 13, 85] as [1, 507, 85]
+            torch.sigmoid_(io[..., 4:])  # 下划线_表示原地操作，原地改变相应位置的值
+            return io.view(bs, -1, self.no), p  # COCO：view [1, 3, 13, 13, 85] as [1, 507, 85]
 
 
 class Darknet(nn.Module):
     """
     YOLOv3 spp object detection model
     """
+
     def __init__(self, cfg, img_size=(416, 416), verbose=False):
         super(Darknet, self).__init__()
         # 这里传入的img_size只在导出ONNX模型时起作用
@@ -220,6 +285,9 @@ class Darknet(nn.Module):
         return self.forward_once(x, verbose=verbose)
 
     def forward_once(self, x, verbose=False):
+        """
+        x为训练数据
+        """
         # yolo_out收集每个yolo_layer层的输出
         # out收集每个模块的输出
         yolo_out, out = [], []
@@ -277,6 +345,7 @@ class Darknet(nn.Module):
     def info(self, verbose=False):
         """
         打印模型的信息
+
         :param verbose:
         :return:
         """
@@ -286,10 +355,8 @@ class Darknet(nn.Module):
 def get_yolo_layers(self):
     """
     获取网络中三个"YOLOLayer"模块对应的索引
+
     :param self:
     :return:
     """
     return [i for i, m in enumerate(self.module_list) if m.__class__.__name__ == 'YOLOLayer']  # [89, 101, 113]
-
-
-

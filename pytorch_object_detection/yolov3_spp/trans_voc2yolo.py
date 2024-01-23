@@ -11,7 +11,8 @@ import shutil
 
 
 # voc数据集根目录以及版本
-voc_root = "/data/VOCdevkit"
+# voc_root = "/data/VOCdevkit"
+voc_root = "E:/VOCdevkit/VOCdevkit"
 voc_version = "VOC2012"
 
 # 转换的训练集以及验证集对应txt文件
@@ -19,7 +20,8 @@ train_txt = "train.txt"
 val_txt = "val.txt"
 
 # 转换后的文件保存目录
-save_file_root = "./my_yolo_dataset"
+# save_file_root = "./my_yolo_dataset"
+save_file_root = "E:/VOCdevkit/VOCdevkit/YOLODATA"
 
 # label标签对应json文件
 label_json_path = './data/pascal_voc_classes.json'
@@ -43,6 +45,7 @@ if os.path.exists(save_file_root) is False:
 def parse_xml_to_dict(xml):
     """
     将xml文件解析成字典形式，参考tensorflow的recursive_parse_xml_to_dict
+
     Args：
         xml: xml tree obtained by parsing XML file contents using lxml.etree
 
@@ -68,6 +71,7 @@ def parse_xml_to_dict(xml):
 def translate_info(file_names: list, save_root: str, class_dict: dict, train_val='train'):
     """
     将对应xml文件信息转为yolo中使用的txt文件信息
+
     :param file_names:
     :param save_root:
     :param class_dict:

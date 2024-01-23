@@ -3,6 +3,9 @@ import numpy as np
 
 
 def parse_model_cfg(path: str):
+    """
+    解析.cfg文件
+    """
     # 检查文件是否存在
     if not path.endswith(".cfg") or not os.path.exists(path):
         raise FileNotFoundError("the cfg file not exist...")
@@ -59,6 +62,9 @@ def parse_model_cfg(path: str):
 
 
 def parse_data_cfg(path):
+    """
+    分析数据配置文件
+    """
     # Parses the data configuration file
     if not os.path.exists(path) and os.path.exists('data' + os.sep + path):  # add data/ prefix if omitted
         path = 'data' + os.sep + path

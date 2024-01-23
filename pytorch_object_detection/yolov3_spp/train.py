@@ -10,7 +10,7 @@ from models import *
 from build_utils.datasets import *
 from build_utils.utils import *
 from train_utils import train_eval_utils as train_util
-from train_utils import get_coco_api_from_dataset
+from train_utils.coco_utils import get_coco_api_from_dataset
 
 
 def train(hyp):
@@ -21,15 +21,15 @@ def train(hyp):
     best = wdir + "best.pt"
     results_file = "results{}.txt".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
 
-    cfg = opt.cfg
-    data = opt.data
-    epochs = opt.epochs
-    batch_size = opt.batch_size
+    cfg = opt.cfg  # cfg/my_yolov3.cfg
+    data = opt.data  # data/my_data.data
+    epochs = opt.epochs  # 30
+    batch_size = opt.batch_size  # 4
     accumulate = max(round(64 / batch_size), 1)  # accumulate n times before optimizer update (bs 64)
-    weights = opt.weights  # initial training weights
-    imgsz_train = opt.img_size
+    weights = opt.weights  # initial training weights, weights/yolov3-spp-ultralytics-512.pt
+    imgsz_train = opt.img_size  # 512
     imgsz_test = opt.img_size  # test image sizes
-    multi_scale = opt.multi_scale
+    multi_scale = opt.multi_scale  # True
 
     # Image sizes
     # 图像要设置成32的倍数
@@ -37,11 +37,11 @@ def train(hyp):
     assert math.fmod(imgsz_test, gs) == 0, "--img-size %g must be a %g-multiple" % (imgsz_test, gs)
     grid_min, grid_max = imgsz_test // gs, imgsz_test // gs
     if multi_scale:
-        imgsz_min = opt.img_size // 1.5
-        imgsz_max = opt.img_size // 0.667
+        imgsz_min = opt.img_size // 1.5  # 512/1.5=341.333333
+        imgsz_max = opt.img_size // 0.667  # 512/0.667=767.616192
 
         # 将给定的最大，最小输入尺寸向下调整到32的整数倍
-        grid_min, grid_max = imgsz_min // gs, imgsz_max // gs
+        grid_min, grid_max = imgsz_min // gs, imgsz_max // gs  # 341/32=10.65625, 767/32=23.96875
         imgsz_min, imgsz_max = int(grid_min * gs), int(grid_max * gs)
         imgsz_train = imgsz_max  # initialize with max size
         print("Using multi_scale training, image range[{}, {}]".format(imgsz_min, imgsz_max))
@@ -49,9 +49,9 @@ def train(hyp):
     # configure run
     # init_seeds()  # 初始化随机种子，保证结果可复现
     data_dict = parse_data_cfg(data)
-    train_path = data_dict["train"]
-    test_path = data_dict["valid"]
-    nc = 1 if opt.single_cls else int(data_dict["classes"])  # number of classes
+    train_path = data_dict["train"]  # train=data/my_train_data.txt
+    test_path = data_dict["valid"]  # valid=data/my_val_data.txt
+    nc = 1 if opt.single_cls else int(data_dict["classes"])  # number of classes, 20
     hyp["cls"] *= nc / 80  # update coco-tuned hyp['cls'] to current dataset
     hyp["obj"] *= imgsz_test / 320
 
@@ -63,7 +63,7 @@ def train(hyp):
     model = Darknet(cfg).to(device)
 
     # 是否冻结权重，只训练predictor的权重
-    if opt.freeze_layers:
+    if opt.freeze_layers:  # 默认为False
         # 索引减一对应的是predictor的索引，YOLOLayer并不是predictor
         output_layer_indices = [idx - 1 for idx, module in enumerate(model.module_list) if
                                 isinstance(module, YOLOLayer)]
@@ -265,9 +265,23 @@ def train(hyp):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--epochs', type=int, default=30)
-    parser.add_argument('--batch-size', type=int, default=4)
+    parser = argparse.ArgumentParser()  # 创建一个解析对象
+    # 然后向该对象中添加要关注的命令行参数和选项，每一个add_argument方法对应一个要关注的参数或选项；
+    # type是要传入的参数的数据类型  help是该参数的提示信息
+    # nargs是用来说明传入的参数个数，'+'表示传入至少一个参数;'*'表示参数可设置零个或多个;'+'表示参数可设置一个或多个;'?'表示参数可设置零个或一个
+    # 为了在命令行中避免上述位置参数的bug（容易忘了顺序），可以使用可选参数，这个有点像关键词传参，但是需要在关键词前面加--
+    # default参数。有的时候需要对某个参数设置默认值，即如果命令行中没有传入该参数的值，程序使用默认值。如果命令行传入该参数，则程序使用传入的值
+    # required参数可以设置该参数是否必需
+    # action参数表示如果在命令行中该参数名被找到时触发的操作或行为。
+    # 比如notest参数定义了action = "store_true"，那么只要在命令行中出现了该参数，那么notest的值就会被设置为True。
+    # 如果action="store_const"表示解析到了/出现了该参数就设置为const，其中const为我们定义在action后的const参数值。
+    # metavar当使用 python xx.py --help命令获取参数信息时，仅仅改变参数的显示名字，不改变参数的调用方式
+    # dest参数用于指定解析器解析命令行参数后，将其存储在哪个属性中。默认情况下，argparse将使用参数的名称作为属性的名称。
+
+    # parser.add_argument('--epochs', type=int, default=30)
+    parser.add_argument('--epochs', type=int, default=2)
+    # parser.add_argument('--batch-size', type=int, default=4)
+    parser.add_argument('--batch-size', type=int, default=1)
     parser.add_argument('--cfg', type=str, default='cfg/my_yolov3.cfg', help="*.cfg path")
     parser.add_argument('--data', type=str, default='data/my_data.data', help='*.data path')
     parser.add_argument('--hyp', type=str, default='cfg/hyp.yaml', help='hyperparameters path')
@@ -286,7 +300,7 @@ if __name__ == '__main__':
     parser.add_argument('--freeze-layers', type=bool, default=False, help='Freeze non-output layers')
     # 是否使用混合精度训练(需要GPU支持混合精度)
     parser.add_argument("--amp", default=False, help="Use torch.cuda.amp for mixed precision training")
-    opt = parser.parse_args()
+    opt = parser.parse_args()  # 调用parse_args()方法进行解析，解析成功之后即可使用
 
     # 检查文件是否存在
     opt.cfg = check_file(opt.cfg)

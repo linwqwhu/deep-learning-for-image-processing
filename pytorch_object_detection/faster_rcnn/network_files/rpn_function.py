@@ -34,7 +34,7 @@ class AnchorsGenerator(nn.Module):
     anchors生成器，为一组特征图和图像大小生成锚框的模块。
     
     该模块支持每个特征图以多种尺寸和纵横比计算锚框。
-    size和aspectratio应该有相同数量的元素，并且应该对应于特征图的数量
+    size和aspect_ratios应该有相同数量的元素，并且应该对应于特征图的数量
     size[i]和aspect_ratios[i]可以有任意数量的元素
     AnchorGenerator将为特征图i的每个空间位置输出一组size[i]*aspect_ratios[i]锚框。
     

@@ -219,7 +219,7 @@ def compute_loss(p, targets, model):  # predictions, targets, model
     BCEobj = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([h['obj_pw']], device=device), reduction=red)
 
     # class label smoothing https://arxiv.org/pdf/1902.04103.pdf eqn 3
-    cp, cn = smooth_BCE(eps=0.0)
+    cp, cn = smooth_BCE(eps=0.0)  # cp=1,cn=0
 
     # focal loss
     g = h['fl_gamma']  # focal loss gamma
@@ -229,6 +229,7 @@ def compute_loss(p, targets, model):  # predictions, targets, model
     # per output
     for i, pi in enumerate(p):  # layer index, layer predictions
         b, a, gj, gi = indices[i]  # image_idx, anchor_idx, grid_y, grid_x
+        # pi: (batch_size, anchors, h, w, 每个anchor预测的参数个数), 25= t_x,t_y,t_w,t_h,obj + class类别个数20
         tobj = torch.zeros_like(pi[..., 0], device=device)  # target obj
 
         nb = b.shape[0]  # number of positive samples
@@ -244,7 +245,7 @@ def compute_loss(p, targets, model):  # predictions, targets, model
             lbox += (1.0 - giou).mean()  # giou loss
 
             # Obj
-            tobj[b, a, gj, gi] = (1.0 - model.gr) + model.gr * giou.detach().clamp(0).type(tobj.dtype)  # giou ratio
+            tobj[b, a, gj, gi] = (1.0 - model.gr) + model.gr * giou.detach().clamp(0).type(tobj.dtype)  # giou ratio , 默认gr=1
 
             # Class
             if model.nc > 1:  # cls loss (only if multiple classes)
@@ -270,6 +271,9 @@ def compute_loss(p, targets, model):  # predictions, targets, model
 
 
 def build_targets(p, targets, model):
+    """
+    计算所有的正样本
+    """
     # Build targets for compute_loss(), input targets(image_idx,class,x,y,w,h)
     nt = targets.shape[0]
     tcls, tbox, indices, anch = [], [], [], []
@@ -294,11 +298,13 @@ def build_targets(p, targets, model):
             j = wh_iou(anchors, t[:, 4:6]) > model.hyp['iou_t']  # iou(3,n) = wh_iou(anchors(3,2), gwh(n,2))
             # t.repeat(na, 1, 1): [nt, 6] -> [3, nt, 6]
             # 获取正样本对应的anchor模板与target信息
+            # 这里的t是所有正样本匹配到的target（gt）信息
             a, t = at[j], t.repeat(na, 1, 1)[j]  # filter
 
         # Define
         # long等于to(torch.int64), 数值向下取整
         b, c = t[:, :2].long().T  # image_idx, class
+        # 将所有正样本对应target（gt）的xy、wh提取出来
         gxy = t[:, 2:4]  # grid xy
         gwh = t[:, 4:6]  # grid wh
         gij = (gxy - offsets).long()  # 匹配targets所在的grid cell左上角坐标
